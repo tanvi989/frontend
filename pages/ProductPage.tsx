@@ -1507,7 +1507,7 @@ const ProductPage: React.FC = () => {
                 className="relative bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden p-0"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="aspect-[35/45] max-h-[70vh] overflow-hidden">
+                <div className="mx-auto overflow-hidden" style={{ width: 384, height: 332 }}>
                   <VtoProductOverlay
                     captureSession={capturedData}
                     productSkuid={String(product.skuid || product.id || id || "")}

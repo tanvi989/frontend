@@ -874,8 +874,11 @@ const WomenCollection: React.FC = () => {
                   >
                     <div className="relative p-0 bg-[#F7F7F7]">
 
-                      {/* Image Container - minimal padding so product image appears larger */}
-                      <div className="p-0 bg-[#F7F7F7] flex relative aspect-[1.4] rounded overflow-hidden">
+                      {/* Image Container - 384x332 when VTO (matches measurement tab); else 1.4 for product images */}
+                      <div
+                        className={`p-0 bg-[#F7F7F7] flex relative rounded overflow-hidden ${fitEnabled && captureSession ? 'mx-auto' : 'aspect-[1.4]'}`}
+                        style={fitEnabled && captureSession ? { width: 384, height: 332 } : undefined}
+                      >
                         {/* Color Dots - Use variants array from API */}
                         {(() => {
                           // Get colors from variants if available, otherwise use color_names

@@ -11,8 +11,8 @@ const store = {
 const error = (message: string) => ({ type: 'ERROR', payload: message });
 const success = (message: string) => ({ type: 'SUCCESS', payload: message });
 
-// Backend URL: use HTTPS to avoid CORS "Redirect is not allowed for preflight" (HTTP→HTTPS redirect breaks preflight)
-export const API_BASE_URL = "https://finalbackend.multifolks.com";
+// Backend URL: local dev on port 5000, production otherwise
+export const API_BASE_URL = import.meta.env.DEV ? "http://localhost:5000" : "https://finalbackend.multifolks.com";
 
 const env = (import.meta as any)?.env ?? {};
 let ENV_API_TARGET = (env.VITE_API_TARGET || env.VITE_API_URL || "").trim();

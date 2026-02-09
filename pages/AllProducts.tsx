@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import GetMyFitPopup from "../components/getMyFitPopup/GetMyFitPopup";
-import { getCaptureSession } from "../utils/captureSession";
+import { getCaptureSession, saveCaptureSession } from "../utils/captureSession";
 import VtoProductOverlay from "../components/VtoProductOverlay";
 import { useQuery } from "@tanstack/react-query";
 import { getFrames, getAllProducts } from "../api/retailerApis";
@@ -19,6 +19,9 @@ import { getHexColorsFromNames } from "../utils/colorNameToHex";
 import { GenderFilter } from "@/components/GenderFilter";
 import { parseDimensionsString } from "@/utils/frameDimensions";
 import { trackViewItemList } from "@/utils/analytics";
+import { FrameAdjustmentControls } from "@/components/try-on/FrameAdjustmentControls";
+import { DEFAULT_ADJUSTMENTS, type AdjustmentValues } from "@/utils/frameOverlayUtils";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 // --- MOCK DATA REMOVED ---
 
@@ -361,6 +364,9 @@ const AllProducts: React.FC = () => {
   const [fitEnabled, setFitEnabled] = useState(false);
   const [topMfitEnabled, setTopMfitEnabled] = useState(false);
   const [capturedSession, setCapturedSession] = useState<any>(null);
+  const [captureSessionState, setCaptureSessionState] = useState<any>(null);
+  const [showAdjustFrame, setShowAdjustFrame] = useState(false);
+  const [frameAdjustments, setFrameAdjustments] = useState<AdjustmentValues>({ ...DEFAULT_ADJUSTMENTS });
   const [sortBy, setSortBy] = useState(SORT_OPTIONS[0]);
   const [isSortOpen, setIsSortOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -398,6 +404,25 @@ const AllProducts: React.FC = () => {
       setTopMfitEnabled(true);
     }
   }, []);
+
+  // Sync capture session from storage when MFit is on; init frame adjustments
+  useEffect(() => {
+    if (fitEnabled) {
+      const session = getCaptureSession();
+      setCaptureSessionState(session);
+      if (session?.frameAdjustments) {
+        setFrameAdjustments({
+          offsetX: session.frameAdjustments.offsetX ?? DEFAULT_ADJUSTMENTS.offsetX,
+          offsetY: session.frameAdjustments.offsetY ?? DEFAULT_ADJUSTMENTS.offsetY,
+          scaleAdjust: session.frameAdjustments.scaleAdjust ?? DEFAULT_ADJUSTMENTS.scaleAdjust,
+          rotationAdjust: session.frameAdjustments.rotationAdjust ?? DEFAULT_ADJUSTMENTS.rotationAdjust,
+        });
+      }
+    } else {
+      setCaptureSessionState(null);
+      setShowAdjustFrame(false);
+    }
+  }, [fitEnabled]);
 
   const [activeFilterCategory, setActiveFilterCategory] = useState<
     string | null
@@ -594,8 +619,18 @@ const AllProducts: React.FC = () => {
     setTopMfitEnabled((prev) => !prev);
   };
 
-  // Get capture session for VTO product display
-  const captureSession = fitEnabled ? getCaptureSession() : null;
+  // Get capture session for VTO product display (merge live frame adjustments)
+  const captureSession = fitEnabled && captureSessionState
+    ? { ...captureSessionState, frameAdjustments }
+    : null;
+
+  const handleFrameAdjustChange = (adj: AdjustmentValues) => {
+    setFrameAdjustments(adj);
+    if (captureSessionState) {
+      const updated = { ...captureSessionState, frameAdjustments: adj };
+      saveCaptureSession(updated);
+    }
+  };
 
   /** Frame width range for Top matches M fit: e.g. face 130 → show frames 130–145 mm */
   const FRAME_WIDTH_MIN_OFFSET_MM = 0;  // faceWidth + 0
@@ -1023,7 +1058,6 @@ const AllProducts: React.FC = () => {
               </div>
             </div>
 
-
             {/* Clear All Filters Button */}
             {/* {(selectedFilters.Size.length > 0 ||
               selectedFilters.Brand.length > 0 ||
@@ -1094,8 +1128,11 @@ const AllProducts: React.FC = () => {
                 >
                   <div className="relative p-0 bg-[#F7F7F7]">
 
-                    {/* Image Container - passport aspect (35:45) when VTO so same size as capture; else 1.4 for product images */}
-                    <div className={`p-0 bg-[#F7F7F7] flex relative rounded overflow-hidden ${fitEnabled && captureSession ? 'aspect-[35/45]' : 'aspect-[1.4]'}`}>
+                    {/* Image Container - 384x332 when VTO (matches measurement tab); else 1.4 for product images */}
+                    <div
+                      className={`p-0 bg-[#F7F7F7] flex relative rounded overflow-hidden ${fitEnabled && captureSession ? 'mx-auto' : 'aspect-[1.4]'}`}
+                      style={fitEnabled && captureSession ? { width: 384, height: 332 } : undefined}
+                    >
                       {/* Color Dots - Use variants array from API */}
                       {(() => {
                         // Get colors from variants if available, otherwise use color_names
@@ -1405,6 +1442,40 @@ const AllProducts: React.FC = () => {
         onClose={() => setIsGetMyFitOpen(false)}
         initialStep={getMyFitInitialStep}
       />
+
+      {/* Floating Adjust frame - bottom right, closed by default */}
+      {fitEnabled && captureSession && (
+        <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
+          {showAdjustFrame ? (
+            <div className="bg-white rounded-xl shadow-xl border border-gray-200 p-4 w-72 max-w-[calc(100vw-2rem)]">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs text-gray-600">Changes apply to all frames.</p>
+                <button
+                  type="button"
+                  onClick={() => setShowAdjustFrame(false)}
+                  className="p-1 rounded hover:bg-gray-100 text-gray-500"
+                  aria-label="Close"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              </div>
+              <FrameAdjustmentControls
+                values={frameAdjustments}
+                onChange={handleFrameAdjustChange}
+                onReset={() => handleFrameAdjustChange({ ...DEFAULT_ADJUSTMENTS })}
+              />
+            </div>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setShowAdjustFrame((prev) => !prev)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg shadow-lg border font-bold text-xs uppercase tracking-wider transition-colors ${showAdjustFrame ? 'bg-gray-200 border-gray-300' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
+          >
+            {showAdjustFrame ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+            Adjust frame
+          </button>
+        </div>
+      )}
     </div>
   );
 };

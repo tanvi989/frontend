@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { toast } from 'sonner';
 import type { CapturedData, FaceLandmarks } from '@/types/face-validation';
 import { parseDimensionsString } from '@/utils/frameDimensions';
 import { getVtoImageUrl } from '@/api/retailerApis';
+import axios from '@/api/axiosConfig';
 import { computeFrameOverlayTransform } from '@/utils/frameOverlayTransform';
+import { Share2, Download, Copy } from 'lucide-react';
 
 /** Defaults matching FramesTab so /glasses matches VTO when no adjustments saved */
 const DEFAULT_FRAME_ADJUSTMENTS = { offsetX: -14, offsetY: -23, scaleAdjust: 1.3, rotationAdjust: 0 };
@@ -66,11 +70,13 @@ export function VtoProductOverlay({
   const [frameError, setFrameError] = useState(false);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [imageNaturalSize, setImageNaturalSize] = useState({ width: 0, height: 0 });
+  const [sharePopupOpen, setSharePopupOpen] = useState(false);
+  const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null);
+  const [sharePopupLoading, setSharePopupLoading] = useState(false);
 
   const vtoImageUrl = getVtoImageUrl(productSkuid);
   const savedAdj = captureSession.frameAdjustments ?? DEFAULT_FRAME_ADJUSTMENTS;
-  // On /glasses we use object-contain; pixel offsets from VTO (object-cover) would misalign. Use 0,0 so frame aligns on eyes.
-  const adj = { ...savedAdj, offsetX: 0, offsetY: 0 };
+  const adj = { ...savedAdj };
 
   useEffect(() => {
     const updateSize = () => {
@@ -138,6 +144,185 @@ export function VtoProductOverlay({
 
   const frameStyle = getFrameStyle();
 
+  /** Get numeric transform for canvas composite (displayX, displayY, scale, rotation) */
+  const getFrameTransform = (): { displayX: number; displayY: number; scale: number; rotation: number } | null => {
+    const { landmarks, measurements, cropRect } = captureSession;
+    if (!landmarks || !(landmarks as FaceLandmarks).leftEye || !(landmarks as FaceLandmarks).rightEye) return null;
+    const lm = landmarks as FaceLandmarks;
+    const landmarksForImage = cropRect ? landmarksToCropped(lm, cropRect) : lm;
+    const faceWidthMm = measurements?.face_width ?? 0;
+    const naturalSize = { width: imageNaturalSize.width || 640, height: imageNaturalSize.height || 480 };
+    if (containerSize.width === 0 || containerSize.height === 0 || faceWidthMm <= 0) return null;
+    const dims = parseDimensionsString(productDimensions);
+    const transform = computeFrameOverlayTransform(
+      dims.width,
+      dims.lensHeight,
+      landmarksForImage,
+      faceWidthMm,
+      containerSize,
+      naturalSize,
+      true
+    );
+    if (!transform) return null;
+    const displayX = transform.midX + adj.offsetX;
+    const displayY = transform.midY + adj.offsetY;
+    const scale = transform.scaleFactor * adj.scaleAdjust;
+    const rotation = transform.angleRad + (adj.rotationAdjust * Math.PI) / 180;
+    return { displayX, displayY, scale, rotation };
+  };
+
+  const filename = `vto-${productName.replace(/\s+/g, '-')}.png`;
+
+  const captureImage = async (): Promise<Blob | null> => {
+    if (!containerRef.current) return null;
+    const rect = containerRef.current.getBoundingClientRect();
+    const w = Math.round(rect.width);
+    const h = Math.round(rect.height);
+    if (w <= 0 || h <= 0) return null;
+
+    const scale = 2;
+    const cw = w * scale;
+    const ch = h * scale;
+
+    // Load face image
+    const faceData = captureSession.processedImageDataUrl;
+    if (!faceData) return null;
+
+    const faceImg = new Image();
+    await new Promise<void>((resolve, reject) => {
+      faceImg.onload = () => resolve();
+      faceImg.onerror = () => reject(new Error('Face load failed'));
+      faceImg.src = faceData;
+      if (faceImg.complete) resolve();
+    });
+
+    // Create canvas and draw face (object-contain style)
+    const canvas = document.createElement('canvas');
+    canvas.width = cw;
+    canvas.height = ch;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    ctx.fillStyle = '#f3f4f6';
+    ctx.fillRect(0, 0, cw, ch);
+
+    const fw = faceImg.naturalWidth;
+    const fh = faceImg.naturalHeight;
+    const scaleFace = Math.min(cw / fw, ch / fh);
+    const drawW = fw * scaleFace;
+    const drawH = fh * scaleFace;
+    const offsetX = (cw - drawW) / 2;
+    const offsetY = (ch - drawH) / 2;
+    ctx.drawImage(faceImg, 0, 0, fw, fh, offsetX, offsetY, drawW, drawH);
+
+    // Fetch and draw VTO frame on top
+    try {
+      const frameRes = await axios.get(`/api/v1/vto-frame/${productSkuid}`, { responseType: 'blob' });
+      if (frameRes?.data instanceof Blob) {
+        const frameImg = new Image();
+        await new Promise<void>((resolve, reject) => {
+          frameImg.onload = () => resolve();
+          frameImg.onerror = () => reject(new Error('Frame load failed'));
+          frameImg.src = URL.createObjectURL(frameRes.data);
+          if (frameImg.complete) resolve();
+        });
+
+        const transform = getFrameTransform();
+        if (transform) {
+          const { displayX, displayY, scale: frameScale, rotation } = transform;
+          const sx = displayX * scale;
+          const sy = displayY * scale;
+          const fw2 = frameImg.naturalWidth;
+          const fh2 = frameImg.naturalHeight;
+          const dw = fw2 * frameScale * scale;
+          const dh = fh2 * frameScale * scale;
+
+          ctx.save();
+          ctx.translate(sx, sy);
+          ctx.rotate(rotation);
+          ctx.drawImage(frameImg, 0, 0, fw2, fh2, -dw / 2, -dh / 2, dw, dh);
+          ctx.restore();
+        }
+
+        URL.revokeObjectURL(frameImg.src);
+      }
+    } catch {
+      // Frame fetch failed - still return face-only
+    }
+
+    return new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b), 'image/png', 0.95));
+  };
+
+  const handleShareButtonClick = async () => {
+    setSharePopupLoading(true);
+    setSharePopupOpen(false);
+    const blob = await captureImage();
+    setSharePopupLoading(false);
+    if (blob) {
+      setCapturedBlob(blob);
+      setSharePopupOpen(true);
+    } else {
+      toast.error('Could not capture image');
+    }
+  };
+
+  const handleShare = async () => {
+    if (!capturedBlob) return;
+    const file = new File([capturedBlob], filename, { type: 'image/png' });
+    try {
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ title: `${productName} - Virtual Try-On`, files: [file] });
+        toast.success('Shared!');
+      } else {
+        const url = URL.createObjectURL(capturedBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success('Shared via download');
+      }
+      setSharePopupOpen(false);
+      setCapturedBlob(null);
+    } catch (e) {
+      toast.error('Share cancelled or failed');
+    }
+  };
+
+  const handleSaveToGallery = () => {
+    if (!capturedBlob) return;
+    const url = URL.createObjectURL(capturedBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Saved to gallery');
+    setSharePopupOpen(false);
+    setCapturedBlob(null);
+  };
+
+  const handleCopy = async () => {
+    if (!capturedBlob) return;
+    try {
+      if (navigator.clipboard && navigator.clipboard.write) {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': capturedBlob })]);
+        toast.success('Image copied! Paste in messages or documents.');
+        setSharePopupOpen(false);
+        setCapturedBlob(null);
+      } else {
+        toast.error('Copy not supported in this browser. Try Share or Save to gallery.');
+      }
+    } catch (e) {
+      toast.error('Copy failed. Try Share or Save to gallery instead.');
+    }
+  };
+
+  const closeSharePopup = () => {
+    setSharePopupOpen(false);
+    setCapturedBlob(null);
+  };
+
   return (
     <div ref={containerRef} className="relative w-full h-full overflow-hidden bg-gray-100">
       <img
@@ -174,6 +359,71 @@ export function VtoProductOverlay({
           />
         </div>
       )}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); handleShareButtonClick(); }}
+        disabled={sharePopupLoading}
+        className="absolute top-2 right-2 p-2 bg-white/90 hover:bg-white rounded-lg shadow-md border border-gray-200 z-10 flex items-center justify-center disabled:opacity-70"
+        title="Share"
+        aria-label="Share this look"
+      >
+        <Share2 className="w-4 h-4 text-gray-700" />
+      </button>
+
+      {/* Share popup - rendered via portal to avoid overflow clipping */}
+      {sharePopupOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50"
+            onClick={closeSharePopup}
+            role="presentation"
+          >
+            <div
+              className="bg-white rounded-xl shadow-xl p-5 flex flex-col gap-3 min-w-[240px] mx-4"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-label="Share or save"
+            >
+              <p className="text-sm font-medium text-gray-800 text-center">Share or save your look</p>
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={handleShare}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
+                  >
+                    <Share2 className="w-5 h-5" />
+                    <span>Share</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCopy}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    <Copy className="w-5 h-5" />
+                    <span>Copy</span>
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveToGallery}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  <Download className="w-5 h-5" />
+                  <span>Save to gallery</span>
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={closeSharePopup}
+                className="text-sm text-gray-500 hover:text-gray-700 py-1"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

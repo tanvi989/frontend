@@ -75,9 +75,9 @@ const GetMyFitPopup: React.FC<GetMyFitPopupProps> = ({ open, onClose, initialSte
     if (currentStep === '1') {
       speak('Welcome to Multifolks Get My Fit. Let\'s get your perfect measurements. Please agree to the privacy policy to begin.');
     } else if (currentStep === '2') {
-      speak('Great! Now, tuck your hair behind your ears and keep your glasses on if you wear them.');
+      speak('Great! Tuck your hair behind your ears and keep your glasses on if you wear them. Face the camera in good lighting.');
     } else if (currentStep === '3' && !capturedImageData && !isProcessing) {
-      speak('Align your eyes with the blue horizontal line. Keep your eyes on the line for accurate glasses try-on. We will capture when everything is aligned.');
+      speak('Position your face in the oval. Align your eyes with the blue horizontal line. Keep your head straight and look at the camera. We will capture automatically when everything is aligned.');
     }
   }, [open, currentStep, speak]);
 
@@ -197,10 +197,24 @@ const GetMyFitPopup: React.FC<GetMyFitPopupProps> = ({ open, onClose, initialSte
       const detectResult = await detectGlasses(imageDataUrl);
       
       if (detectResult.success && detectResult.glasses_detected) {
-        setGlassesDetected(true);
-        setProcessingStep('Glasses detected');
-        setIsProcessing(false);
-        speak('I detected glasses. Would you like to keep them or remove them?');
+        speak('Glasses detected. Removing them for better measurements.');
+        setProcessingStep('Removing glasses...');
+        try {
+          const removeResult = await removeGlasses(imageDataUrl);
+          if (removeResult.success && removeResult.edited_image_base64) {
+            const processedUrl = `data:image/png;base64,${removeResult.edited_image_base64}`;
+            setProcessedImageData(processedUrl);
+            await performMeasurements(imageDataUrl, processedUrl, false, faceValidationState.landmarks);
+          } else {
+            throw new Error('Glasses removal failed');
+          }
+        } catch (err) {
+          console.error('[GetMyFit] Removal error:', err);
+          toast.error('Could not remove glasses. Using original image.');
+          await performMeasurements(imageDataUrl, imageDataUrl, true, faceValidationState.landmarks);
+        } finally {
+          setIsProcessing(false);
+        }
         return;
       }
 
@@ -282,12 +296,6 @@ const GetMyFitPopup: React.FC<GetMyFitPopupProps> = ({ open, onClose, initialSte
     } finally {
       setIsProcessing(false);
     }
-  };
-
-  const handleConfirmRemovedPhoto = async () => {
-    if (!removedPreviewUrl || !capturedImageData || !faceValidationState.landmarks) return;
-    setRemovedPreviewUrl(null);
-    await performMeasurements(capturedImageData, removedPreviewUrl, false, faceValidationState.landmarks);
   };
 
   const downloadResult = () => {
@@ -398,14 +406,6 @@ const GetMyFitPopup: React.FC<GetMyFitPopupProps> = ({ open, onClose, initialSte
                 landmarks={faceValidationState.landmarks}
                 containerSize={containerSize}
                 isMobile={false}
-                debugValues={{
-                  faceWidthPercent: faceValidationState.faceWidthPercent,
-                  leftEyeAR: faceValidationState.leftEyeAR,
-                  rightEyeAR: faceValidationState.rightEyeAR,
-                  headTilt: faceValidationState.headTilt,
-                  headRotation: faceValidationState.headRotation,
-                  brightness: faceValidationState.brightness,
-                }}
               />
             )}
           </div>
@@ -462,46 +462,6 @@ const GetMyFitPopup: React.FC<GetMyFitPopupProps> = ({ open, onClose, initialSte
                 <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center z-40 text-white">
                   <Loader2 className="w-12 h-12 animate-spin mb-4 text-primary" />
                   <p className="text-xl font-bold tracking-widest uppercase italic">{processingStep}</p>
-                </div>
-              )}
-              {removedPreviewUrl && !isProcessing && (
-                <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-end pb-16 z-50">
-                  <div className="flex-1 min-h-0 w-full flex items-center justify-center p-4">
-                    <img
-                      src={removedPreviewUrl}
-                      alt="Glasses removed"
-                      className="max-h-[50vh] max-w-full object-contain rounded-lg shadow-2xl"
-                      key="removed-preview"
-                    />
-                  </div>
-                  <p className="text-white text-lg font-bold mb-6 uppercase tracking-wide">Glasses removed. Check the photo, then continue.</p>
-                  <div className="flex gap-4">
-                    <button
-                      onClick={() => { setRemovedPreviewUrl(null); setGlassesDetected(true); }}
-                      className="px-8 py-4 bg-gray-200 text-gray-800 rounded-[20px] font-bold hover:bg-gray-300 uppercase"
-                    >
-                      Back
-                    </button>
-                    <button
-                      onClick={handleConfirmRemovedPhoto}
-                      className="px-10 py-4 bg-primary text-white rounded-[20px] font-black hover:opacity-90 uppercase tracking-widest"
-                    >
-                      Go ahead
-                    </button>
-                  </div>
-                </div>
-              )}
-              {glassesDetected && !isProcessing && !removedPreviewUrl && (
-                <div className="absolute inset-0 bg-black/80 flex items-center justify-center p-8 z-50">
-                  <div className="bg-white rounded-[40px] p-10 max-w-sm w-full text-center shadow-2xl">
-                    <Glasses className="w-12 h-12 mx-auto mb-6 text-blue-600" />
-                    <h3 className="text-2xl font-black mb-4 uppercase italic">Glasses Detected</h3>
-                    <p className="text-gray-600 mb-8 font-medium">Would you like to keep them or remove them for better measurements?</p>
-                    <div className="flex gap-4">
-                      <button onClick={handleKeepGlasses} className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 rounded-[20px] font-bold text-gray-800">KEEP</button>
-                      <button onClick={handleRemoveGlasses} className="flex-1 py-4 bg-black text-white hover:bg-gray-800 rounded-[20px] font-bold uppercase">AI Remove</button>
-                    </div>
-                  </div>
                 </div>
               )}
               {capturedImageData && !isProcessing && !glassesDetected && !removedPreviewUrl && (
@@ -671,18 +631,18 @@ const GetMyFitPopup: React.FC<GetMyFitPopupProps> = ({ open, onClose, initialSte
                     </div>
                   </div>
                   
-                  <Tabs defaultValue="measurements" className="w-full">
+                  <Tabs defaultValue="frames" className="w-full">
                     <TabsList className="grid grid-cols-2 h-12 bg-gray-100 p-1 rounded-xl mb-6">
-                      <TabsTrigger value="measurements" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold uppercase text-[10px] tracking-widest">
-                        Measurements
-                      </TabsTrigger>
                       <TabsTrigger value="frames" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold uppercase text-[10px] tracking-widest">
                         Virtual Try-On
                       </TabsTrigger>
+                      <TabsTrigger value="measurements" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold uppercase text-[10px] tracking-widest">
+                        Measurements
+                      </TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value="measurements" className="mt-0 focus-visible:outline-none bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><MeasurementsTab /></TabsContent>
                     <TabsContent value="frames" className="mt-0 focus-visible:outline-none bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><FramesTab /></TabsContent>
+                    <TabsContent value="measurements" className="mt-0 focus-visible:outline-none bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><MeasurementsTab /></TabsContent>
                   </Tabs>
                 </div>
               )}

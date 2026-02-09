@@ -6,7 +6,7 @@ import { cropToPassportStyle } from '@/utils/passportCrop';
 import { MeasurementsTab } from '@/components/try-on/MeasurementsTab';
 import { FramesTab } from '@/components/try-on/FramesTab';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Ruler, Glasses, Loader2, RotateCcw, Volume2, X, Camera, Download, ExternalLink, ChevronLeft } from 'lucide-react';
+import { Ruler, Loader2, RotateCcw, Volume2, X, Camera, Download, ExternalLink, ChevronLeft } from 'lucide-react';
 import { useFaceDetection } from '@/hooks/useFaceDetection';
 import { useVoiceGuidance } from '@/hooks/useVoiceGuidance';
 import { FaceGuideOverlay } from '@/components/try-on/FaceGuideOverlay';
@@ -64,13 +64,13 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
 
   const allChecksPassed = faceValidationState.allChecksPassed;
 
-  // Voice guidance logic
+  // Voice guidance for steps
   useEffect(() => {
     if (!open) return;
     if (currentStep === '1') speak('Welcome to Multi Folks Fit. Let\'s get your perfect measurements. Please agree to the privacy policy to begin.');
-    if (currentStep === '2') speak('Please ensure your hair is tucked behind your ears and keep your glasses on.');
+    if (currentStep === '2') speak('Tuck your hair behind your ears and keep your glasses on. Face the camera in good lighting.');
     if (currentStep === '3' && !capturedImageData && !isProcessing) {
-      speak('Position your face in the oval. We will capture when everything is aligned.');
+      speak('Position your face in the oval. Align your eyes with the blue line. Keep your head straight and look at the camera. We will capture automatically when everything is aligned.');
     }
   }, [open, currentStep, speak]);
 
@@ -160,8 +160,22 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
 
       const detectResult = await detectGlasses(imageDataUrl);
       if (detectResult.success && detectResult.glasses_detected) {
-        setGlassesDetected(true);
-        setIsProcessing(false);
+        speak('Glasses detected. Removing them for better measurements.');
+        setProcessingStep('Removing glasses...');
+        try {
+          const removeResult = await removeGlasses(imageDataUrl);
+          if (removeResult.success && removeResult.edited_image_base64) {
+            const processedUrl = `data:image/png;base64,${removeResult.edited_image_base64}`;
+            setProcessedImageData(processedUrl);
+            await performMeasurements(imageDataUrl, processedUrl, false, faceValidationState.landmarks);
+          } else {
+            throw new Error('Glasses removal failed');
+          }
+        } catch {
+          await performMeasurements(imageDataUrl, imageDataUrl, true, faceValidationState.landmarks);
+        } finally {
+          setIsProcessing(false);
+        }
         return;
       }
 
@@ -202,30 +216,6 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
       toast.error('Measurement failed');
       retakePhoto();
     }
-  };
-
-  const handleKeepGlasses = () => performMeasurements(capturedImageData!, capturedImageData!, true, faceValidationState.landmarks);
-  const handleRemoveGlasses = async () => {
-    setRemovedPreviewUrl(null);
-    setIsProcessing(true);
-    setProcessingStep('Removing glasses...');
-    try {
-      const removeResult = await removeGlasses(capturedImageData!);
-      if (removeResult.success && removeResult.edited_image_base64) {
-        const processedUrl = `data:image/png;base64,${removeResult.edited_image_base64}`;
-        setProcessedImageData(processedUrl);
-        setRemovedPreviewUrl(processedUrl);
-      } else throw new Error('Fail');
-    } catch {
-      await performMeasurements(capturedImageData!, capturedImageData!, true, faceValidationState.landmarks);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-  const handleConfirmRemovedPhoto = () => {
-    if (!removedPreviewUrl || !capturedImageData || !faceValidationState.landmarks) return;
-    setRemovedPreviewUrl(null);
-    performMeasurements(capturedImageData, removedPreviewUrl, false, faceValidationState.landmarks);
   };
 
   const downloadResult = () => {
@@ -351,14 +341,6 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
                   landmarks={faceValidationState.landmarks}
                   containerSize={containerSize}
                   isMobile={true}
-                  debugValues={{
-                    faceWidthPercent: faceValidationState.faceWidthPercent,
-                    leftEyeAR: faceValidationState.leftEyeAR,
-                    rightEyeAR: faceValidationState.rightEyeAR,
-                    headTilt: faceValidationState.headTilt,
-                    headRotation: faceValidationState.headRotation,
-                    brightness: faceValidationState.brightness,
-                  }}
                 />
               )}
             </div>
@@ -406,32 +388,7 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
                     <p className="text-white font-black uppercase tracking-widest text-[10px]">{processingStep}</p>
                   </div>
                 )}
-                {removedPreviewUrl && !isProcessing && (
-                  <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-end pb-12 z-50 px-4">
-                    <div className="flex-1 min-h-0 w-full flex items-center justify-center py-4">
-                      <img src={removedPreviewUrl} alt="Glasses removed" className="max-h-[40vh] max-w-full object-contain rounded-lg shadow-xl" key="removed-preview" />
-                    </div>
-                    <p className="text-white text-xs font-bold mb-4 uppercase tracking-wide text-center">Glasses removed. Check the photo, then continue.</p>
-                    <div className="flex gap-3 w-full">
-                      <button onClick={() => { setRemovedPreviewUrl(null); setGlassesDetected(true); }} className="flex-1 py-4 bg-gray-200 rounded-2xl font-black text-[10px] uppercase">Back</button>
-                      <button onClick={handleConfirmRemovedPhoto} className="flex-1 py-4 bg-primary text-white rounded-2xl font-black text-[10px] uppercase tracking-widest">Go ahead</button>
-                    </div>
-                  </div>
-                )}
-                {glassesDetected && !isProcessing && !removedPreviewUrl && (
-                  <div className="absolute inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-[32px] p-8 w-full text-center shadow-2xl">
-                      <Glasses className="w-12 h-12 mx-auto mb-4 text-blue-600" />
-                      <h3 className="text-xl font-black mb-2 uppercase tracking-tighter">Glasses Detected</h3>
-                      <p className="text-xs text-gray-500 mb-8 font-bold leading-tight uppercase">AI can remove glasses for better results.</p>
-                      <div className="flex gap-3">
-                        <button onClick={handleKeepGlasses} className="flex-1 py-4 bg-gray-100 rounded-2xl font-black text-[10px] uppercase">Keep</button>
-                        <button onClick={handleRemoveGlasses} className="flex-1 py-4 bg-black text-white rounded-2xl font-black text-[10px] uppercase tracking-widest">AI Remove</button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {capturedImageData && !isProcessing && !glassesDetected && !removedPreviewUrl && (
+                {capturedImageData && !isProcessing && !removedPreviewUrl && (
                   <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40">
                     <button onClick={retakePhoto} className="bg-white text-black border-2 border-black px-10 py-3 rounded-full font-black text-xs uppercase tracking-widest">Retake Scan</button>
                   </div>
@@ -462,15 +419,15 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
             </div>
             */}
             
-            <Tabs defaultValue="measurements" className="w-full flex-1 flex flex-col overflow-hidden">
+            <Tabs defaultValue="frames" className="w-full flex-1 flex flex-col overflow-hidden">
               <TabsList className="grid grid-cols-2 h-10 bg-gray-200/50 p-1 rounded-xl mb-4">
-                <TabsTrigger value="measurements" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold text-[9px] uppercase tracking-widest">Units</TabsTrigger>
                 <TabsTrigger value="frames" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold text-[9px] uppercase tracking-widest">Try-On</TabsTrigger>
+                <TabsTrigger value="measurements" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold text-[9px] uppercase tracking-widest">Units</TabsTrigger>
               </TabsList>
 
               <div className="flex-1 overflow-y-auto min-h-0 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-                <TabsContent value="measurements" className="mt-0 focus-visible:outline-none"><MeasurementsTab /></TabsContent>
                 <TabsContent value="frames" className="mt-0 focus-visible:outline-none"><FramesTab /></TabsContent>
+                <TabsContent value="measurements" className="mt-0 focus-visible:outline-none"><MeasurementsTab /></TabsContent>
               </div>
             </Tabs>
           </div>

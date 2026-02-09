@@ -65,46 +65,93 @@ export function useVoiceGuidance(options: VoiceGuidanceOptions = {}) {
   const speakGuidance = useCallback((validationChecks: Array<{ id: string; passed: boolean; message: string }>) => {
     if (!enabled) return;
 
-    // Priority order for guidance
+    // Priority order for guidance (most critical first)
+    const faceDetectedCheck = validationChecks.find(c => c.id === 'face-detected');
+    const faceInOvalCheck = validationChecks.find(c => c.id === 'face-in-oval');
     const distanceCheck = validationChecks.find(c => c.id === 'distance');
-    const positionCheck = validationChecks.find(c => c.id === 'position' || c.id === 'face-detected' || c.id === 'face-in-oval');
     const tiltCheck = validationChecks.find(c => c.id === 'tilt' || c.id === 'head-straight');
     const rotationCheck = validationChecks.find(c => c.id === 'rotation' || c.id === 'no-rotation');
     const lightingCheck = validationChecks.find(c => c.id === 'lighting');
     const eyesCheck = validationChecks.find(c => c.id === 'eyes-open');
 
-    // Speak the most important failed check
-    if (distanceCheck && !distanceCheck.passed) {
-      if (distanceCheck.message.includes('closer')) {
-        speak('Please move closer to the camera');
-      } else if (distanceCheck.message.includes('back')) {
-        speak('Please move back from the camera');
+    // 1. No face detected – ask user to position face
+    if (faceDetectedCheck && !faceDetectedCheck.passed) {
+      if (faceDetectedCheck.message.includes('Multiple')) {
+        speak('Only one person should be in frame. Please make sure no one else is visible.');
+      } else {
+        speak('Position your face in the oval. Make sure you are well lit and facing the camera.');
       }
       return;
     }
 
-    if (positionCheck && !positionCheck.passed) {
-      speak('Center your face and align your eyes with the blue horizontal line for accurate try-on.');
+    // 2. Face not in oval – specific direction guidance
+    if (faceInOvalCheck && !faceInOvalCheck.passed) {
+      const msg = faceInOvalCheck.message.toLowerCase();
+      if (msg.includes('move left')) {
+        speak('Move your face slightly to the left to centre it in the oval.');
+      } else if (msg.includes('move right')) {
+        speak('Move your face slightly to the right to centre it in the oval.');
+      } else if (msg.includes('move up')) {
+        speak('Move your face up a little to align with the guide.');
+      } else if (msg.includes('move down')) {
+        speak('Move your face down a little to align with the guide.');
+      } else {
+        speak('Centre your face in the oval and align your eyes with the blue horizontal line for the best try-on.');
+      }
       return;
     }
 
+    // 3. Distance – too close or too far
+    if (distanceCheck && !distanceCheck.passed) {
+      if (distanceCheck.message.includes('closer')) {
+        speak('Please move closer to the camera. Your face should fill most of the oval.');
+      } else if (distanceCheck.message.includes('back')) {
+        speak('Please move back from the camera. You are a bit too close.');
+      }
+      return;
+    }
+
+    // 4. Head tilt – keep head straight
     if (tiltCheck && !tiltCheck.passed) {
-      speak('Please keep your head straight, avoid tilting');
+      if (tiltCheck.message.includes('Tilt head left')) {
+        speak('Straighten your head. Tilt it slightly to the left.');
+      } else if (tiltCheck.message.includes('Tilt head right')) {
+        speak('Straighten your head. Tilt it slightly to the right.');
+      } else {
+        speak('Keep your head straight. Avoid tilting left or right for accurate measurement.');
+      }
       return;
     }
 
+    // 5. Head rotation – face the camera
     if (rotationCheck && !rotationCheck.passed) {
-      speak('Please look straight at the camera');
+      if (rotationCheck.message.includes('Turn head left')) {
+        speak('Look straight at the camera. Turn your face slightly to the left.');
+      } else if (rotationCheck.message.includes('Turn head right')) {
+        speak('Look straight at the camera. Turn your face slightly to the right.');
+      } else {
+        speak('Please look directly at the camera. Face forward for the best result.');
+      }
       return;
     }
 
+    // 6. Lighting
     if (lightingCheck && !lightingCheck.passed) {
-      speak(lightingCheck.message);
+      if (lightingCheck.message.includes('dark')) {
+        speak('It is too dark. Please add more light or move to a brighter area.');
+      } else if (lightingCheck.message.includes('bright')) {
+        speak('It is too bright. Reduce the light or move away from direct sunlight.');
+      } else if (lightingCheck.message.includes('shadows')) {
+        speak('Reduce shadows on your face. Try turning on a light in front of you.');
+      } else {
+        speak(lightingCheck.message);
+      }
       return;
     }
 
+    // 7. Eyes open
     if (eyesCheck && !eyesCheck.passed) {
-      speak('Please keep your eyes open');
+      speak('Please keep both eyes open and look at the camera. This helps us measure accurately.');
       return;
     }
   }, [enabled, speak]);

@@ -236,14 +236,6 @@ export function CaptureCamera() {
           landmarks={faceValidationState.landmarks}
           isMobile={isMobile}
           containerSize={containerRef.current ? { width: containerRef.current.clientWidth, height: containerRef.current.clientHeight } : undefined}
-          debugValues={{
-            faceWidthPercent: faceValidationState.faceWidthPercent,
-            leftEyeAR: faceValidationState.leftEyeAR,
-            rightEyeAR: faceValidationState.rightEyeAR,
-            headTilt: faceValidationState.headTilt,
-            headRotation: faceValidationState.headRotation,
-            brightness: faceValidationState.brightness,
-          }}
         />
       </div>
 
