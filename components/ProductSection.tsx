@@ -201,7 +201,7 @@ export const ProductSection: React.FC = () => {
               <div className="grid grid-cols-2 gap-0">
                 {mobileFrames.map((frame, index) => (
                   <div
-                    key={frame.id}
+                    key={frame.skuid ?? frame.id ?? `mobile-frame-${index}`}
                     className={`group cursor-pointer flex flex-col border-[#D4D4D4] overflow-hidden bg-[#F5F5F5] hover:shadow-md transition-shadow duration-300
                       ${index % 2 === 0 ? 'border-r border-t' : 'border-t'} 
                       ${index === 0 || index === 1 ? 'border-t' : ''}
@@ -221,15 +221,15 @@ export const ProductSection: React.FC = () => {
                           ))}
                         </div>
                       )}
-                      <div className="absolute inset-0 flex items-center justify-center p-2">
-                        {/* Image 1 - Visible by default - Base image (images[0]) */}
+                      <div className="absolute inset-0 flex items-center justify-center p-0">
+                        {/* Image 1 - Visible by default - Base image (images[0]) - scale-110 for larger product */}
                         <img
                           src={frame.images?.[0] || frame.image}
                           alt={frame.name}
                           width="400"
                           height="300"
                           loading="lazy"
-                          className="w-full h-full object-contain mix-blend-multiply transition-opacity duration-300 group-hover:opacity-0"
+                          className="w-full h-full object-contain mix-blend-multiply transition-opacity duration-300 group-hover:opacity-0 scale-110"
                         />
                         {/* Image 2 - Hidden until hover - Shows images[1] */}
                         <img
@@ -238,7 +238,7 @@ export const ProductSection: React.FC = () => {
                           width="400"
                           height="300"
                           loading="lazy"
-                          className="w-full h-full object-contain mix-blend-multiply absolute inset-0 transition-opacity duration-300 opacity-0 group-hover:opacity-100"
+                          className="w-full h-full object-contain mix-blend-multiply absolute inset-0 transition-opacity duration-300 opacity-0 group-hover:opacity-100 scale-110"
                           onError={(e) => {
                             (e.target as HTMLImageElement).style.display =
                               "none";
@@ -247,7 +247,7 @@ export const ProductSection: React.FC = () => {
                       </div>
                     </div>
                     {/* Model Name and Price Below */}
-                    <div className="flex justify-between items-end mt-2 px-2 mx-4">
+                    <div className="flex justify-between items-end mt-1 px-2 mx-4">
                       <p className="font-bold text-[#1F1F1F] uppercase tracking-wider text-xs xs:text-sm sm:text-base md:text-lg lg:text-xl truncate pr-2">
                         {frame.naming_system || frame.name}
                       </p>
@@ -333,7 +333,7 @@ export const ProductSection: React.FC = () => {
               <div className="grid grid-cols-3 gap-0">
                 {desktopFrames.map((frame, index) => (
                   <div
-                    key={frame.id}
+                    key={frame.skuid ?? frame.id ?? `desktop-frame-${index}`}
                     className={`group cursor-pointer flex flex-col border-[#D4D4D4] overflow-hidden bg-[#F5F5F5] hover:shadow-md transition-shadow duration-300
                       ${index % 3 === 0 ? 'border-r' : index % 3 === 1 ? 'border-r' : ''} 
                       ${index < 3 ? 'border-t border-b' : index < 6 ? 'border-b' : 'border-b'}
@@ -354,15 +354,15 @@ export const ProductSection: React.FC = () => {
                           ))}
                         </div>
                       )}
-                      <div className="absolute inset-0 flex items-center justify-center p-2">
-                        {/* Image 1 - Visible by default - Base image (images[0]) */}
+                      <div className="absolute inset-0 flex items-center justify-center p-0">
+                        {/* Image 1 - Visible by default - scale-110 for larger product */}
                         <img
                           src={frame.images?.[0] || frame.image}
                           alt={frame.name}
                           width="400"
                           height="300"
                           loading="lazy"
-                          className="w-full h-full object-contain mix-blend-multiply transition-opacity duration-500 group-hover:opacity-0"
+                          className="w-full h-full object-contain mix-blend-multiply transition-opacity duration-500 group-hover:opacity-0 scale-110"
                         />
                         {/* Image 2 - Hidden until hover - Shows images[1] */}
                         <img
@@ -371,7 +371,7 @@ export const ProductSection: React.FC = () => {
                           width="400"
                           height="300"
                           loading="lazy"
-                          className="w-full h-full object-contain mix-blend-multiply absolute inset-0 transition-opacity duration-500 opacity-0 group-hover:opacity-100"
+                          className="w-full h-full object-contain mix-blend-multiply absolute inset-0 transition-opacity duration-500 opacity-0 group-hover:opacity-100 scale-110"
                           onError={(e) => {
                             (e.target as HTMLImageElement).style.display =
                               "none";
@@ -380,7 +380,7 @@ export const ProductSection: React.FC = () => {
                       </div>
                     </div>
                     {/* Model Name and Price Below */}
-                    <div className="flex justify-between items-end mt-2 px-1 p-2 mx-1">
+                    <div className="flex justify-between items-end mt-1 px-1 p-2 mx-1">
                       <p className="font-bold text-[#1F1F1F] uppercase tracking-wider text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl truncate pr-2">
                         {frame.naming_system || frame.name}
                       </p>

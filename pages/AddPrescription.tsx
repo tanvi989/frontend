@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import CheckoutStepper from "../components/CheckoutStepper";
 import { saveMyPrescription, uploadPrescriptionImage } from "../api/retailerApis";
-import { getProductFlow } from "../utils/productFlowStorage";
+import { getProductFlow, setProductFlow } from "../utils/productFlowStorage";
 import { compressImage } from "../utils/imageUtils";
 import GetMyFitPopup from "../components/getMyFitPopup/GetMyFitPopup";
 import { useCaptureData } from "../contexts/CaptureContext";
@@ -13,6 +14,7 @@ import { X, CheckCircle, Loader2 } from "lucide-react";
 const AddPrescription: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { state: locationState } = useLocation();
+    const [searchParams] = useSearchParams();
     const flow = id ? getProductFlow(id) : null;
     const state = {
         ...flow,
@@ -20,21 +22,25 @@ const AddPrescription: React.FC = () => {
         ...locationState,
     };
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
+    const cartIdFromUrl = searchParams.get("cart_id") || locationState?.cartId || (locationState as any)?.cart_id;
+    const productSku = state?.product?.skuid || state?.product?.id || id;
 
     // Camera State
     const [isCameraOpen, setIsCameraOpen] = useState(false);
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
     const [stream, setStream] = useState<MediaStream | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [showModal, setShowModal] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
     const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false); // New loading state
 
-    // PD State
-    const [pdPreference, setPdPreference] = useState<string>(""); // "" | "know" | "generate"
-    const [pdRight, setPdRight] = useState<string>("");
-    const [pdLeft, setPdLeft] = useState<string>("");
+    // PD State (can be pre-filled from SelectPrescriptionSource when user chose "I know my PD")
+    const [pdPreference, setPdPreference] = useState<string>(() => locationState?.pdPreference ?? "");
+    const [pdType, setPdType] = useState<string>(() => locationState?.pdType ?? flow?.pdType ?? "single");
+    const [pdSingle, setPdSingle] = useState<string>(() => locationState?.pdSingle ?? flow?.pdSingle ?? "");
+    const [pdRight, setPdRight] = useState<string>(() => locationState?.pdRight ?? flow?.pdRight ?? "");
+    const [pdLeft, setPdLeft] = useState<string>(() => locationState?.pdLeft ?? flow?.pdLeft ?? "");
     const [isGetMyFitOpen, setIsGetMyFitOpen] = useState(false);
     const [helpModalOpen, setHelpModalOpen] = useState(false);
     const [helpModalTab, setHelpModalTab] = useState("Pupillary Distance");
@@ -204,30 +210,68 @@ const AddPrescription: React.FC = () => {
                     throw new Error("Failed to upload photo to GCS");
                 }
 
-                // Step 2: Save prescription with GCS URL
-                console.log("💾 Saving prescription with GCS URL...");
+                // Step 2: Save prescription with GCS URL and link to cart/product so cart can find it
+                const photoData: Record<string, any> = {
+                    fileName: file.name,
+                    fileSize: file.size,
+                    fileType: file.type,
+                    uploadedAt: new Date().toISOString(),
+                    image_url: imageUrl
+                };
+                if (productSku || cartIdFromUrl) {
+                    photoData.associatedProduct = {
+                        ...(productSku && { productSku: String(productSku) }),
+                        ...(cartIdFromUrl && { cartId: String(cartIdFromUrl) })
+                    };
+                }
+                console.log("💾 Saving prescription with GCS URL...", photoData.associatedProduct ? { associatedProduct: photoData.associatedProduct } : "");
                 await saveMyPrescription(
                     "photo",
-                    {
-                        fileName: file.name,
-                        fileSize: file.size,
-                        fileType: file.type,
-                        uploadedAt: new Date().toISOString()
-                    },
+                    photoData,
                     "Captured Prescription",
                     imageUrl,  // GCS CDN URL
                     userId ? undefined : guestId
                 );
 
                 console.log("✓ Prescription saved successfully");
-                
+                queryClient.invalidateQueries({ queryKey: ["prescriptions"] });
+
+                // Also store in localStorage; replace any existing prescription for same product/cart so only new one shows
+                try {
+                    const key = "prescriptions";
+                    const list = JSON.parse(localStorage.getItem(key) || "[]");
+                    const assoc = photoData.associatedProduct || (productSku ? { productSku: String(productSku) } : {});
+                    const newEntry = {
+                        type: "photo",
+                        name: "Captured Prescription",
+                        image_url: imageUrl,
+                        data: photoData,
+                        associatedProduct: assoc,
+                        createdAt: new Date().toISOString(),
+                    };
+                    const productSkuStr = assoc.productSku != null ? String(assoc.productSku) : "";
+                    const cartIdStr = assoc.cartId != null ? String(assoc.cartId) : "";
+                    const filtered = list.filter((p: any) => {
+                        const pSku = p?.associatedProduct?.productSku ?? p?.data?.associatedProduct?.productSku;
+                        const pCart = p?.associatedProduct?.cartId ?? p?.data?.associatedProduct?.cartId;
+                        if (productSkuStr && pSku != null && String(pSku) === productSkuStr) return false;
+                        if (cartIdStr && pCart != null && String(pCart) === cartIdStr) return false;
+                        return true;
+                    });
+                    filtered.push(newEntry);
+                    localStorage.setItem(key, JSON.stringify(filtered));
+                } catch (_) {
+                    // ignore localStorage errors
+                }
+
                 // Show preview with success message immediately
                 setIsUploading(false);
                 setShowPreview(true);
 
-            } catch (error) {
+            } catch (error: any) {
                 console.error("Failed to save prescription:", error);
-                alert("Failed to save prescription. Please try again.");
+                const msg = error?.response?.data?.detail || error?.response?.data?.message || error?.message || "Please try again.";
+                alert("Failed to save prescription: " + (typeof msg === "string" ? msg : JSON.stringify(msg)));
                 setIsUploading(false); // Stop loading on error
                 return;
             } finally {
@@ -237,9 +281,26 @@ const AddPrescription: React.FC = () => {
     };
 
     const proceedToNextStep = () => {
-        if (pdPreference === "know" && (!pdRight || !pdLeft)) {
-            alert("Please select both Right and Left PD values");
-            return;
+        if (pdPreference === "know") {
+            if (pdType === "dual" && (!pdRight || !pdLeft)) {
+                alert("Please select both Right and Left PD values");
+                return;
+            }
+            if (pdType === "single" && !pdSingle) {
+                alert("Please select your PD value");
+                return;
+            }
+        }
+
+        // Persist PD to flow so SelectLensCoatings always has Dual pdRight/pdLeft even if location state is lost
+        if (id) {
+            setProductFlow(id, {
+                pdPreference: pdPreference || (pdType || pdSingle || pdRight || pdLeft ? "know" : undefined),
+                pdType,
+                pdSingle: pdSingle || undefined,
+                pdRight: pdRight || undefined,
+                pdLeft: pdLeft || undefined,
+            });
         }
 
         navigate(`/product/${id}/select-lens`, {
@@ -248,9 +309,11 @@ const AddPrescription: React.FC = () => {
                 prescriptionMethod: "photo",
                 prescriptionImage: capturedImage,
                 prescriptionImageUrl: uploadedImageUrl,
-                pdRight,
-                pdLeft,
-                pdPreference,
+                pdPreference: pdPreference || (pdType === "dual" || pdType === "single" ? "know" : undefined),
+                pdType,
+                pdSingle: pdSingle || undefined,
+                pdRight: pdRight || undefined,
+                pdLeft: pdLeft || undefined,
             },
         });
     };
@@ -363,8 +426,8 @@ const AddPrescription: React.FC = () => {
                 
                 {/* Main Card Grid / Buttons Container */}
                 <div className="max-w-[900px] mx-auto mt-8">
-                    {/* Desktop Card Grid */}
-                    <div className="hidden md:grid grid-cols-2 gap-6">
+                    {/* Desktop: 3 columns with Take Photo in center */}
+                    <div className="hidden md:grid grid-cols-3 gap-6">
                         {/* Enter Prescription Manually */}
                         <button
                             onClick={() => handleSelection("manual")}
@@ -381,6 +444,25 @@ const AddPrescription: React.FC = () => {
                             </h3>
                             <p className={`${descTextClass} text-gray-600 max-w-[400px]`}>
                                 Key in your prescription details manually.
+                            </p>
+                        </button>
+
+                        {/* Take Photo - center */}
+                        <button
+                            onClick={() => handleSelection("photo")}
+                            className={`bg-[#F3F0E7] border border-gray-500 rounded-[24px] ${cardPadding} transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[200px] group w-full`}
+                        >
+                            <div className="w-12 h-12 bg-[#184545] rounded-lg flex items-center justify-center mb-4 text-white">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                                    <circle cx="12" cy="13" r="4" />
+                                </svg>
+                            </div>
+                            <h3 className={`${titleTextClass} font-bold text-[#1F1F1F] mb-2`}>
+                                Take Photo
+                            </h3>
+                            <p className={`${descTextClass} text-gray-600 max-w-[400px]`}>
+                                Take photo of your eye power prescription.
                             </p>
                         </button>
 
@@ -405,66 +487,27 @@ const AddPrescription: React.FC = () => {
                                 Upload an Image or PDF of your Prescription for Quick Processing.
                             </p>
                         </button>
-
-                        {/* Take Photo */}
-                        <button
-                            onClick={() => handleSelection("photo")}
-                            className={`bg-[#F3F0E7] border border-gray-500 rounded-[24px] ${cardPadding} transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[200px] group w-full`}
-                        >
-                            <div className="w-12 h-12 bg-[#184545] rounded-lg flex items-center justify-center mb-4 text-white">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                                    <circle cx="12" cy="13" r="4" />
-                                </svg>
-                            </div>
-                            <h3 className={`${titleTextClass} font-bold text-[#1F1F1F] mb-2`}>
-                                Take Photo
-                            </h3>
-                            <p className={`${descTextClass} text-gray-600 max-w-[400px]`}>
-                                Take photo of your eye power prescription.
-                            </p>
-                        </button>
-
-                        {/* Share Later */}
-                        <div className="relative group">
-                            <div
-                                className={`bg-[#F3F0E7] border border-gray-500 rounded-[24px] ${cardPadding} transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[200px] cursor-pointer w-full group`}
-                            >
-                                <div
-                                    className="absolute inset-0 z-0"
-                                    onClick={() => handleSelection("later")}
-                                />
-                                <div className="relative z-10 pointer-events-none flex flex-col items-center">
-                                    <div className="w-12 h-12 bg-[#184545] rounded-lg flex items-center justify-center mb-4 text-white">
-                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                                            <polyline points="22 4 12 14.01 9 11.01" />
-                                        </svg>
-                                    </div>
-                                    <h3 className={`${titleTextClass} font-bold text-[#1F1F1F] mb-2`}>
-                                        Share Later
-                                    </h3>
-                                    <p className={`${descTextClass} text-gray-600 max-w-[400px]`}>
-                                        Share your prescription with us after placing your order.{" "}
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setShowModal(true);
-                                            }}
-                                            className="underline hover:text-black cursor-pointer font-medium bg-transparent border-none p-0 inline text-inherit z-20 relative pointer-events-auto"
-                                        >
-                                            Know more
-                                        </button>
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
                     </div>
 
-                    {/* Mobile Action Buttons */}
-                    <div className="md:hidden flex flex-col gap-6 px-4">
-                        <div className="flex gap-4">
+                    {/* Mobile: Take Photo centered, then Manual and Upload */}
+                    <div className="md:hidden flex flex-col gap-6 px-4 items-center">
+                        <button
+                            onClick={() => handleSelection("photo")}
+                            className="w-full max-w-[320px] bg-[#232320] text-white py-5 rounded-2xl flex flex-col items-center justify-center gap-3"
+                        >
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                                <circle cx="12" cy="13" r="4" />
+                            </svg>
+                            <span className="font-bold text-lg">Take Photo</span>
+                            <span className="text-sm text-white/80">Take photo of your prescription</span>
+                        </button>
+                        <div className="flex items-center gap-4 w-full max-w-[320px]">
+                            <div className="h-px bg-gray-300 flex-1"></div>
+                            <span className="text-gray-400 text-sm">OR</span>
+                            <div className="h-px bg-gray-300 flex-1"></div>
+                        </div>
+                        <div className="flex gap-4 w-full max-w-[320px]">
                             <button
                                 onClick={() => handleSelection("upload")}
                                 className="flex-1 bg-[#232320] text-white py-4 rounded-lg flex items-center justify-center gap-2"
@@ -477,99 +520,15 @@ const AddPrescription: React.FC = () => {
                                 <span className="font-medium">Upload</span>
                             </button>
                             <button
-                                onClick={() => handleSelection("photo")}
-                                className="flex-1 bg-[#232320] text-white py-4 rounded-lg flex items-center justify-center gap-2"
+                                onClick={() => handleSelection("manual")}
+                                className="flex-1 bg-[#232320] text-white py-4 rounded-lg font-medium"
                             >
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                                    <circle cx="12" cy="13" r="4" />
-                                </svg>
-                                <span className="font-medium">Take Photo</span>
-                            </button>
-                        </div>
-                        <div className="flex items-center gap-4">
-                            <div className="h-px bg-gray-300 flex-1"></div>
-                            <span className="text-gray-400 text-sm">OR</span>
-                            <div className="h-px bg-gray-300 flex-1"></div>
-                        </div>
-                        <button
-                            onClick={() => handleSelection("manual")}
-                            className="w-full bg-[#232320] text-white py-4 rounded-lg font-medium"
-                        >
-                            Enter Prescription Manually
-                        </button>
-                        <div className="flex items-center gap-4">
-                            <div className="h-px bg-gray-300 flex-1"></div>
-                            <span className="text-gray-400 text-sm">OR</span>
-                            <div className="h-px bg-gray-300 flex-1"></div>
-                        </div>
-                        <div className="flex flex-col items-center gap-2">
-                            <button
-                                onClick={() => handleSelection("later")}
-                                className="w-full bg-[#232320] text-white py-4 rounded-lg font-medium"
-                            >
-                                Share Prescription Later
-                            </button>
-                            <button onClick={() => setShowModal(true)} className="text-[#006D77] underline text-sm font-medium">
-                                Know more
+                                Enter Manually
                             </button>
                         </div>
                     </div>
                 </div>
                 
-                {/* Know More Modal */}
-                {
-                    showModal && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 relative animate-in fade-in zoom-in duration-200">
-                                <button
-                                    onClick={() => setShowModal(false)}
-                                    className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
-                                >
-                                    <svg
-                                        width="20"
-                                        height="20"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    >
-                                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                                    </svg>
-                                </button>
-
-                                <h3 className="text-lg font-bold text-[#1F1F1F] mb-4 pr-8">
-                                    Share your prescription later
-                                </h3>
-
-                                <ul className="space-y-3 text-sm text-gray-700">
-                                    <li className="flex gap-2 items-start">
-                                        <span className="mt-1.5 w-1 h-1 rounded-full bg-black flex-shrink-0"></span>
-                                        <span>
-                                            You can add your prescription within 30 days of placing your order.
-                                        </span>
-                                    </li>
-                                    <li className="flex gap-2 items-start">
-                                        <span className="mt-1.5 w-1 h-1 rounded-full bg-black flex-shrink-0"></span>
-                                        <span>
-                                            Your chosen frame will be reserved with us for 30 days.
-                                        </span>
-                                    </li>
-                                    <li className="flex gap-2 items-start">
-                                        <span className="mt-1.5 w-1 h-1 rounded-full bg-black flex-shrink-0"></span>
-                                        <span>
-                                            You get 100% money back guarantee in-case you do not proceed with sharing your prescription within the said time frame.
-                                        </span>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-                    )
-                }
-
                 {/* Camera Modal */}
                 {isCameraOpen && (
                     <div className="fixed inset-0 bg-black/90 z-50 flex flex-col items-center justify-center p-4">
@@ -737,7 +696,8 @@ const AddPrescription: React.FC = () => {
                                                     <select
                                                         value={pdRight}
                                                         onChange={(e) => setPdRight(e.target.value)}
-                                                        className="w-full bg-[#F3F0E7] border border-gray-200 rounded-lg px-4 py-3 pr-8 text-[#1F1F1F] font-medium focus:outline-none focus:border-[#232320] appearance-none cursor-pointer"
+                                                        className="relative z-10 w-full bg-[#F3F0E7] border border-gray-200 rounded-lg px-4 py-3 pr-8 text-[#1F1F1F] font-medium focus:outline-none focus:border-[#232320] appearance-none cursor-pointer"
+                                                        style={{ minHeight: "44px" }}
                                                     >
                                                         <option value="">Select PD</option>
                                                         {pdOptions.map((val) => (
@@ -746,7 +706,7 @@ const AddPrescription: React.FC = () => {
                                                             </option>
                                                         ))}
                                                     </select>
-                                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+                                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 z-0">
                                                         <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
                                                             <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
                                                         </svg>
@@ -762,7 +722,8 @@ const AddPrescription: React.FC = () => {
                                                     <select
                                                         value={pdLeft}
                                                         onChange={(e) => setPdLeft(e.target.value)}
-                                                        className="w-full bg-[#F3F0E7] border border-gray-200 rounded-lg px-4 py-3 pr-8 text-[#1F1F1F] font-medium focus:outline-none focus:border-[#232320] appearance-none cursor-pointer"
+                                                        className="relative z-10 w-full bg-[#F3F0E7] border border-gray-200 rounded-lg px-4 py-3 pr-8 text-[#1F1F1F] font-medium focus:outline-none focus:border-[#232320] appearance-none cursor-pointer"
+                                                        style={{ minHeight: "44px" }}
                                                     >
                                                         <option value="">Select PD</option>
                                                         {pdOptions.map((val) => (
@@ -771,7 +732,7 @@ const AddPrescription: React.FC = () => {
                                                             </option>
                                                         ))}
                                                     </select>
-                                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+                                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 z-0">
                                                         <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
                                                             <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
                                                         </svg>

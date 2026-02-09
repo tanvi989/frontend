@@ -6,6 +6,7 @@ export default {
     "./pages/**/*.{js,ts,jsx,tsx}",
     "./components/**/*.{js,ts,jsx,tsx}",
     "./layouts/**/*.{js,ts,jsx,tsx}",
+    "./perfect-fit-cam/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     extend: {

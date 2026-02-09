@@ -87,29 +87,39 @@ export function FaceGuideOverlay({
             strokeDasharray="4,4"
           />
 
-          {/* Horizontal line through eyes – align eyes with this line (blue like perfect-fit-cam) */}
+          {/* Horizontal EYE LINE – frame will be placed exactly here for 100% accurate VTO */}
+          {/* Glow first so sharp line shows on top */}
           <line
-            x1={isMobile ? landmarks.noseTip.x * containerSize.width - 85 : landmarks.faceLeft.x * containerSize.width}
+            x1={0}
             y1={((landmarks.leftEye.y + landmarks.rightEye.y) / 2) * containerSize.height}
-            x2={isMobile ? landmarks.noseTip.x * containerSize.width + 85 : landmarks.faceRight.x * containerSize.width}
+            x2={containerSize.width}
             y2={((landmarks.leftEye.y + landmarks.rightEye.y) / 2) * containerSize.height}
-            stroke={isMobile ? 'hsl(199, 89%, 48%, 0.8)' : 'hsl(199, 89%, 48%, 0.4)'}
-            strokeWidth={isMobile ? 2 : 1}
-            strokeDasharray={isMobile ? 'none' : '4,4'}
+            stroke="hsl(199, 89%, 48%, 0.35)"
+            strokeWidth={isMobile ? 10 : 8}
+            strokeDasharray="none"
+          />
+          <line
+            x1={0}
+            y1={((landmarks.leftEye.y + landmarks.rightEye.y) / 2) * containerSize.height}
+            x2={containerSize.width}
+            y2={((landmarks.leftEye.y + landmarks.rightEye.y) / 2) * containerSize.height}
+            stroke="hsl(199, 89%, 48%, 0.95)"
+            strokeWidth={isMobile ? 3 : 2}
+            strokeDasharray="none"
           />
 
-          {/* Eye alignment text – blue, same as perfect-fit-cam */}
+          {/* Eye alignment text – clear instruction */}
           <text
-            x={landmarks.noseTip.x * containerSize.width}
-            y={((landmarks.leftEye.y + landmarks.rightEye.y) / 2) * containerSize.height - (isMobile ? 25 : 20)}
+            x={containerSize.width / 2}
+            y={((landmarks.leftEye.y + landmarks.rightEye.y) / 2) * containerSize.height - (isMobile ? 28 : 22)}
             fill="hsl(199, 89%, 48%)"
-            fontSize={isMobile ? 12 : 10}
+            fontSize={isMobile ? 14 : 12}
             fontWeight="bold"
             textAnchor="middle"
             className="uppercase tracking-widest"
-            style={{ fontFamily: 'inherit' }}
+            style={{ fontFamily: 'inherit', textShadow: '0 0 8px rgba(0,0,0,0.5)' }}
           >
-            {isMobile ? 'ALIGN EYES WITH THIS LINE MOBILE' : 'Align eyes with this line'}
+            Align eyes with this line
           </text>
 
           {/* Face Contour Line */}

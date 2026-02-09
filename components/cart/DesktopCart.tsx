@@ -12,7 +12,8 @@ import {
     getMyPrescriptions,
     updateMyPrescriptionCartId,
     deletePrescription,
-    removePrescription
+    removePrescription,
+    getCartItemId
 } from "../../api/retailerApis";
 import { CartItem } from "../../types";
 import Loader from "../Loader";
@@ -212,11 +213,11 @@ const DesktopCart: React.FC = () => {
     const userStr = localStorage.getItem("user");
     const user = userStr ? JSON.parse(userStr) : null;
 
-    // Fetch User Prescriptions
+    // Fetch User/Guest Prescriptions (so "View prescription" shows when they've already added one)
     const { data: prescriptionsResponse, refetch: refetchPrescriptions } = useQuery({
         queryKey: ["prescriptions"],
         queryFn: () => getMyPrescriptions(),
-        enabled: authData.isAuthenticated,
+        enabled: authData.isAuthenticated || !!localStorage.getItem("guest_id"),
         staleTime: 5 * 60 * 1000, // 5 minutes
         cacheTime: 10 * 60 * 1000, // 10 minutes
         refetchOnWindowFocus: false, // Prevent refetch on window focus
@@ -230,23 +231,14 @@ const DesktopCart: React.FC = () => {
         if (fromPrescription === "true") {
             console.log("🔄 [DesktopCart] Returning from prescription page, refreshing data...");
             sessionStorage.removeItem("fromPrescription");
-            // Refetch prescriptions to get the latest data
-            if (authData.isAuthenticated) {
-                console.log("🔄 [DesktopCart] Refetching prescriptions from database...");
-                // Add a small delay to ensure backend has processed the save
-                setTimeout(() => {
-                    refetchPrescriptions().then(() => {
-                        console.log("✅ [DesktopCart] Prescriptions refetched");
-                        // Force re-render to check for new prescriptions
-                        setPrescriptionRefresh(prev => prev + 1);
-                    });
-                }, 1000);
-            } else {
-                // For non-authenticated users, just refresh the state
-                setPrescriptionRefresh(prev => prev + 1);
-            }
+            setTimeout(() => {
+                refetchPrescriptions().then(() => {
+                    console.log("✅ [DesktopCart] Prescriptions refetched");
+                    setPrescriptionRefresh(prev => prev + 1);
+                });
+            }, 300);
         }
-    }, [refetchPrescriptions, authData.isAuthenticated]);
+    }, [refetchPrescriptions]);
 
     // Fetch Cart Data - Optimized
     const {
@@ -402,9 +394,13 @@ const DesktopCart: React.FC = () => {
             const previous = queryClient.getQueryData(["cart"]);
             queryClient.setQueryData(["cart"], (old: any) => {
                 if (!old?.cart) return old;
+                const targetId = Number(cartId);
                 return {
                     ...old,
-                    cart: (old.cart || []).filter((item: any) => Number(item.cart_id) !== Number(cartId)),
+                    cart: (old.cart || []).filter((item: any) => {
+                        const itemId = getCartItemId(item);
+                        return itemId == null || Number(itemId) !== targetId;
+                    }),
                 };
             });
             return { previous };
@@ -442,7 +438,8 @@ const DesktopCart: React.FC = () => {
         pendingDeleteCartIdRef.current = null;
         setDeleteDialog(false);
         setSelectedCartId(null);
-        if (idToDelete != null) handleDeleteItem(idToDelete);
+        const numId = idToDelete != null ? Number(idToDelete) : NaN;
+        if (!Number.isNaN(numId)) handleDeleteItem(numId);
     };
 
     // Clear All cart mutation
@@ -630,57 +627,54 @@ const DesktopCart: React.FC = () => {
                     console.log(`🔍 [getPrescriptionByCartId] Sample prescription structure:`, JSON.stringify(userPrescriptions[0], null, 2));
                 }
                 
-                // ✅ FIX: Check multiple possible locations for cartId
-                let prescription = userPrescriptions.find((p: any) => {
+                // Helper: get sortable date (latest first)
+                const getPrescriptionDate = (p: any) => {
+                    const raw = p?.created_at ?? p?.data?.created_at ?? p?.createdAt ?? p?.data?.createdAt ?? p?.updated_at ?? p?.data?.uploadedAt ?? 0;
+                    if (typeof raw === 'number') return raw;
+                    if (typeof raw === 'string') return new Date(raw).getTime() || 0;
+                    return 0;
+                };
+
+                // ✅ Match by cartId, then pick LATEST (most recently created/updated)
+                let matches = userPrescriptions.filter((p: any) => {
                     if (!p) return false;
-                    
-                    // Check nested data.associatedProduct.cartId
                     const dataCartId = p?.data?.associatedProduct?.cartId;
-                    // Check root level associatedProduct.cartId
                     const rootCartId = p?.associatedProduct?.cartId;
-                    // Also check if data itself has cartId
                     const directCartId = p?.data?.cartId || p?.cartId;
-                    // Check if associatedProduct is at root level with cartId
                     const rootAssociatedCartId = p?.associatedProduct?.cartId;
-                    
-                    // Also check deeply nested structures
                     const deepDataCartId = p?.data?.data?.associatedProduct?.cartId;
-                    
-                    const matches = (dataCartId && String(dataCartId) === String(cartId)) ||
-                                   (rootCartId && String(rootCartId) === String(cartId)) ||
-                                   (directCartId && String(directCartId) === String(cartId)) ||
-                                   (rootAssociatedCartId && String(rootAssociatedCartId) === String(cartId)) ||
-                                   (deepDataCartId && String(deepDataCartId) === String(cartId));
-                    
-                    if (matches) {
-                        console.log('✅ [getPrescriptionByCartId] Found matching prescription:', {
-                            dataCartId,
-                            rootCartId,
-                            directCartId,
-                            rootAssociatedCartId,
-                            deepDataCartId,
-                            fullPrescription: p
-                        });
-                    }
-                    
-                    return matches;
+                    return (dataCartId && String(dataCartId) === String(cartId)) ||
+                           (rootCartId && String(rootCartId) === String(cartId)) ||
+                           (directCartId && String(directCartId) === String(cartId)) ||
+                           (rootAssociatedCartId && String(rootAssociatedCartId) === String(cartId)) ||
+                           (deepDataCartId && String(deepDataCartId) === String(cartId));
                 });
 
-                // Optional fallback (if cartId missing, try productSku)
-                if (!prescription && productSku) {
-                    console.log(`🔍 [getPrescriptionByCartId] Trying productSku fallback: ${productSku}`);
-                    prescription = userPrescriptions.find((p: any) => {
+                // Fallback: match by productSku if no cartId match (normalize to string for comparison)
+                if (matches.length === 0 && productSku != null && productSku !== "") {
+                    const productSkuStr = String(productSku);
+                    console.log(`🔍 [getPrescriptionByCartId] Trying productSku fallback: ${productSkuStr}`);
+                    matches = userPrescriptions.filter((p: any) => {
                         if (!p) return false;
                         const dataSku = p?.data?.associatedProduct?.productSku;
                         const rootSku = p?.associatedProduct?.productSku;
                         const deepDataSku = p?.data?.data?.associatedProduct?.productSku;
-                        return (dataSku && dataSku === productSku) ||
-                               (rootSku && rootSku === productSku) ||
-                               (deepDataSku && deepDataSku === productSku);
+                        return (dataSku && String(dataSku) === productSkuStr) ||
+                               (rootSku && String(rootSku) === productSkuStr) ||
+                               (deepDataSku && String(deepDataSku) === productSkuStr);
                     });
-                    if (prescription) {
-                        console.log('✅ [getPrescriptionByCartId] Found prescription by productSku:', prescription);
-                    }
+                }
+
+                // Prefer camera (photo) over upload when both match, then LATEST by date
+                const prescription = matches.length > 0
+                    ? (() => {
+                        const photoMatches = matches.filter((p: any) => p && p.type === "photo");
+                        const pool = photoMatches.length > 0 ? photoMatches : matches;
+                        return pool.sort((a: any, b: any) => getPrescriptionDate(b) - getPrescriptionDate(a))[0];
+                    })()
+                    : null;
+                if (prescription) {
+                    console.log('✅ [getPrescriptionByCartId] Using latest matching prescription (by date)');
                 }
 
                 if (prescription) {
@@ -691,20 +685,23 @@ const DesktopCart: React.FC = () => {
                 console.log(`⚠️ [getPrescriptionByCartId] No user prescriptions available (count: ${userPrescriptions?.length || 0})`);
             }
 
-            // Also check localStorage as fallback
+            // Also check localStorage as fallback (use latest by date if multiple)
             try {
                 const localPrescriptions = JSON.parse(localStorage.getItem('prescriptions') || '[]');
                 console.log(`🔍 [getPrescriptionByCartId] Checking ${localPrescriptions.length} localStorage prescriptions...`);
-                const localPrescription = localPrescriptions.find((p: any) => {
+                const localMatches = localPrescriptions.filter((p: any) => {
                     const pCartId = p?.associatedProduct?.cartId;
-                    const matches = pCartId && String(pCartId) === String(cartId);
-                    if (matches) {
-                        console.log('✅ [getPrescriptionByCartId] Found matching localStorage prescription:', p);
-                    }
-                    return matches;
+                    return pCartId && String(pCartId) === String(cartId);
                 });
-                if (localPrescription) {
-                    console.log('✅ [getPrescriptionByCartId] Returning prescription from localStorage:', localPrescription);
+                if (localMatches.length > 0) {
+                    const getLocalDate = (p: any) => {
+                        const raw = p?.createdAt ?? p?.created_at ?? p?.prescriptionDetails?.createdAt ?? 0;
+                        if (typeof raw === 'number') return raw;
+                        if (typeof raw === 'string') return new Date(raw).getTime() || 0;
+                        return 0;
+                    };
+                    const localPrescription = localMatches.sort((a: any, b: any) => getLocalDate(b) - getLocalDate(a))[0];
+                    console.log('✅ [getPrescriptionByCartId] Returning latest localStorage prescription');
                     return localPrescription;
                 }
             } catch (e) {
@@ -1005,18 +1002,26 @@ const DesktopCart: React.FC = () => {
                                 </div>
 
                                 <div className="space-y-6">
-                                    {cartItems.map((item) => (
+                                    {cartItems.map((item, index) => (
 
                                         <div
-                                            key={item.cart_id}
+                                            key={getCartItemId(item) ?? item.product_id ?? index}
                                             className="bg-white p-4 md:p-6 relative"
                                         >
-                                            {/* Remove Link */}
+                                            {/* Remove from cart */}
                                             <button
-                                                onClick={() => handleDeleteClick(item.cart_id)}
-                                                className="absolute top-2 right-2 md:top-0 md:right-0 text-[#E53935] text-xs font-bold hover:underline p-2 pr-4 underline"
+                                                type="button"
+                                                onClick={() => {
+                                                    const id = getCartItemId(item);
+                                                    if (id != null) handleDeleteClick(id);
+                                                }}
+                                                className="absolute top-2 right-2 md:top-4 md:right-4 flex items-center gap-1.5 text-red-600 text-xs font-bold hover:text-red-700 hover:underline p-2"
+                                                aria-label="Remove from cart"
                                             >
-                                                Remove
+                                                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                                Remove from cart
                                             </button>
 
                                             <div className="flex flex-col md:flex-row gap-6 md:gap-8 mt-4">
@@ -1190,12 +1195,14 @@ const DesktopCart: React.FC = () => {
                                                                                     Edit Prescription
                                                                                 </button>
                                                                             ) : (
-                                                                                // Show Upload and Manual options
+                                                                                // Show Upload, Manual, and Take Photo options
                                                                                 <div className="flex flex-col gap-2 pl-4 border-l-2 border-teal-200">
                                                                                     <button
                                                                                         onClick={() => {
-                                                                                            // Navigate to upload prescription page with cart_id
-                                                                                            navigate(`/upload-prescription?cart_id=${item.cart_id}`);
+                                                                                            const sku = item.product?.products?.skuid || item.product_id;
+                                                                                            navigate(`/upload-prescription?cart_id=${item.cart_id}`, {
+                                                                                                state: { cartId: item.cart_id, cart_id: item.cart_id, product: item.product?.products || (sku ? { skuid: sku } : undefined) }
+                                                                                            });
                                                                                         }}
                                                                                         className="text-[#025048] hover:text-[#013a34] text-sm font-medium underline transition-colors w-fit text-left"
                                                                                         title="Upload a new prescription image to replace existing one"
@@ -1204,13 +1211,29 @@ const DesktopCart: React.FC = () => {
                                                                                     </button>
                                                                                     <button
                                                                                         onClick={() => {
-                                                                                            // Navigate to manual prescription page with cart_id
-                                                                                            navigate(`/manual-prescription?cart_id=${item.cart_id}`);
+                                                                                            const sku = item.product?.products?.skuid || item.product_id;
+                                                                                            navigate(`/manual-prescription?cart_id=${item.cart_id}`, {
+                                                                                                state: { cartId: item.cart_id, cart_id: item.cart_id, product: item.product?.products || (sku ? { skuid: sku } : undefined) }
+                                                                                            });
                                                                                         }}
                                                                                         className="text-[#025048] hover:text-[#013a34] text-sm font-medium underline transition-colors w-fit text-left"
                                                                                         title="Add manual prescription to replace existing one"
                                                                                     >
                                                                                         Manual Prescription
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={() => {
+                                                                                            const sku = item.product?.products?.skuid || item.product_id;
+                                                                                            if (sku) {
+                                                                                                navigate(`/product/${sku}/add-prescription?cart_id=${item.cart_id}`, {
+                                                                                                    state: { cartId: item.cart_id, cart_id: item.cart_id, product: item.product?.products || { skuid: sku } }
+                                                                                                });
+                                                                                            }
+                                                                                        }}
+                                                                                        className="text-[#025048] hover:text-[#013a34] text-sm font-medium underline transition-colors w-fit text-left"
+                                                                                        title="Take a photo of your prescription"
+                                                                                    >
+                                                                                        Take Photo
                                                                                     </button>
                                                                                     <button
                                                                                         onClick={() => toggleEditMode(item.cart_id)}
@@ -1223,17 +1246,34 @@ const DesktopCart: React.FC = () => {
                                                                         </div>
                                                                     );
                                                                 } else {
-                                                                    // No prescription - show ONLY Add Prescription button
+                                                                    // No prescription - show Add Prescription (opens choice: manual, upload, or take photo via product add-prescription with cart_id)
+                                                                    const sku = item.product?.products?.skuid || item.product_id;
                                                                     return (
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                // Redirect to manual prescription page with cart_id
-                                                                                navigate(`/manual-prescription?cart_id=${item.cart_id}`);
-                                                                            }}
-                                                                            className="bg-[#E94D37] hover:bg-[#bf3e2b] text-white font-bold text-sm px-4 py-2 rounded-md transition-colors w-fit"
-                                                                        >
-                                                                            Add Prescription
-                                                                        </button>
+                                                                        <div className="flex flex-col gap-2">
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    navigate(`/manual-prescription?cart_id=${item.cart_id}`, {
+                                                                                        state: { cartId: item.cart_id, cart_id: item.cart_id, product: item.product?.products || (sku ? { skuid: sku } : undefined) }
+                                                                                    });
+                                                                                }}
+                                                                                className="bg-[#E94D37] hover:bg-[#bf3e2b] text-white font-bold text-sm px-4 py-2 rounded-md transition-colors w-fit"
+                                                                            >
+                                                                                Add Prescription
+                                                                            </button>
+                                                                            {sku && (
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        navigate(`/product/${sku}/add-prescription?cart_id=${item.cart_id}`, {
+                                                                                            state: { cartId: item.cart_id, cart_id: item.cart_id, product: item.product?.products || { skuid: sku } }
+                                                                                        });
+                                                                                    }}
+                                                                                    className="text-[#025048] hover:text-[#013a34] text-sm font-medium underline transition-colors w-fit text-left"
+                                                                                    title="Take a photo of your prescription"
+                                                                                >
+                                                                                    Or take photo
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
                                                                     );
                                                                 }
                                                             })()}

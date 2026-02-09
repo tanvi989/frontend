@@ -741,7 +741,7 @@ const WomenCollection: React.FC = () => {
           <div className="lg:hidden flex items-center justify-end sm:mb-4 mb-0 px-2">
             <div className="flex items-center gap-3">
               <span className="text-xs font-bold text-[#333] uppercase tracking-wider">
-                GET MY FIT
+                MFit
               </span>
               <button
                 type="button"
@@ -787,7 +787,7 @@ const WomenCollection: React.FC = () => {
                 {/* Get My Fit Toggle - same design as AllProducts */}
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-bold text-[#333] uppercase tracking-wider">
-                    GET MY FIT
+                    MFit
                   </span>
                   <button
                     type="button"
@@ -872,10 +872,10 @@ const WomenCollection: React.FC = () => {
                     }
                     className="cursor-pointer group bg-white border border-gray-200 hover:bg-gray-50 transition-all"
                   >
-                    <div className="relative p-1.5 bg-[#F7F7F7]">
+                    <div className="relative p-0 bg-[#F7F7F7]">
 
-                      {/* Image Container */}
-                      <div className="p-0 bg-[#F7F7F7] flex relative aspect-[1.4] rounded mb-1 mt-4 overflow-hidden">
+                      {/* Image Container - minimal padding so product image appears larger */}
+                      <div className="p-0 bg-[#F7F7F7] flex relative aspect-[1.4] rounded overflow-hidden">
                         {/* Color Dots - Use variants array from API */}
                         {(() => {
                           // Get colors from variants if available, otherwise use color_names
@@ -923,13 +923,13 @@ const WomenCollection: React.FC = () => {
                             <img
                               src={product.images?.[0] || product.image}
                               alt={product.name}
-                              className="w-full h-full object-contain mix-blend-multiply transition-opacity duration-300 group-hover:opacity-0"
+                              className="w-full h-full object-contain mix-blend-multiply transition-opacity duration-300 group-hover:opacity-0 scale-110"
                             />
                             {/* Hover image - Shows images[1] */}
                             <img
                               src={product.images?.[1] || product.image}
                               alt={product.name}
-                              className="absolute w-full h-full object-contain mix-blend-multiply transition-all duration-300 opacity-0 group-hover:opacity-100"
+                              className="absolute w-full h-full object-contain mix-blend-multiply transition-all duration-300 opacity-0 group-hover:opacity-100 scale-110"
                               onError={(e) => {
                                 (e.target as HTMLImageElement).style.display = "none";
                               }}
@@ -938,7 +938,7 @@ const WomenCollection: React.FC = () => {
                         )}
                       </div>
                       {/* Price and Naming System */}
-                      <div className="flex justify-between items-end mt-2 px-1 mx-2">
+                      <div className="flex justify-between items-end mt-1 px-1 mx-2">
                         <span className="text-xs md:text-lg font-bold text-[#1F1F1F] uppercase tracking-wider">
                           {product.naming_system}
                         </span>

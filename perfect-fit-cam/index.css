@@ -1,0 +1,100 @@
+/* Perfect Fit – same design as MFit (cream, charcoal, Lynstone, primary blue) */
+/* Font already loaded by main app (Lynstone); reuse same tokens */
+
+.perfect-fit-root,
+[data-perfect-fit] {
+  --background: 43 33% 94%;   /* cream #F3F0E7 */
+  --foreground: 0 0% 12%;    /* charcoal #1F1F1F */
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 12%;
+  --primary: 199 89% 48%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 43 20% 90%;
+  --secondary-foreground: 0 0% 12%;
+  --muted: 43 20% 92%;
+  --muted-foreground: 0 0% 45%;
+  --accent: 16 70% 56%;       /* burnt-orange */
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 142 71% 45%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 100%;
+  --border: 43 15% 85%;
+  --input: 43 15% 85%;
+  --ring: 199 89% 48%;
+  --radius: 0.75rem;
+  --validation-pass: 142 71% 45%;
+  --validation-fail: 0 72% 51%;
+  --validation-warning: 38 92% 50%;
+  --overlay-dark: 0 0% 12%;
+}
+
+.perfect-fit-root *,
+[data-perfect-fit] * {
+  border-color: hsl(var(--border));
+}
+
+.perfect-fit-root,
+[data-perfect-fit] {
+  background-color: #F3F0E7;
+  color: #1F1F1F;
+  font-family: "Lynstone", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.perfect-fit-root h1,
+.perfect-fit-root h2,
+.perfect-fit-root h3,
+[data-perfect-fit] h1,
+[data-perfect-fit] h2,
+[data-perfect-fit] h3 {
+  font-weight: 600 !important;
+  letter-spacing: 0.5px;
+}
+
+/* Face guide – same as MFit */
+.face-guide-oval {
+  border: 3px dashed hsl(var(--primary) / 0.6);
+  box-shadow: 0 0 0 9999px hsl(var(--overlay-dark) / 0.4);
+}
+
+.face-guide-valid {
+  border-color: hsl(var(--validation-pass));
+  box-shadow: 0 0 20px hsl(var(--validation-pass) / 0.3), 0 0 0 9999px hsl(var(--overlay-dark) / 0.4);
+}
+
+.face-guide-invalid {
+  border-color: hsl(var(--validation-fail));
+  box-shadow: 0 0 20px hsl(var(--validation-fail) / 0.3), 0 0 0 9999px hsl(var(--overlay-dark) / 0.4);
+}
+
+.border-validation-pass { border-color: #22c55e !important; }
+.border-validation-fail { border-color: #ef4444 !important; }
+.bg-validation-pass\/90 { background-color: rgba(34, 197, 94, 0.9) !important; }
+.bg-validation-fail\/90 { background-color: rgba(239, 68, 68, 0.9) !important; }
+
+.glass-panel {
+  background: hsl(var(--card) / 0.9);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border) / 0.5);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+.pulse-ring {
+  animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-ring {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeIn { animation: fadeIn 0.5s ease; }

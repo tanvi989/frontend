@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { authService } from "../services/authService";
 import { syncLocalCartToBackend } from "../api/retailerApis";
 import { Loader2 } from "./Loader";
+import Toast from "./Toast";
 
 interface LoginModalProps {
     open: boolean;
@@ -24,6 +25,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [showPassword, setShowPassword] = useState(false);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
     useEffect(() => {
         if (open) {
@@ -81,11 +83,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             const response = await authService.login(email, password);
             // login handles storage, event dispatch, AND cart merge
 
-            if (response.success || response.token || response.status) {
-                // Cart merge already happened in authService.login()
-                onClose();
-                // Dispatch event to refresh cart
-                window.dispatchEvent(new Event('cart-updated'));
+            const token = response?.token ?? response?.data?.token;
+            if (response?.success || token || response?.status) {
+                setSuccessMessage("Login successful");
             } else {
                 setError(response.message || "Invalid credentials");
             }
@@ -268,8 +268,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                                     Proceed
                                 </button>
 
-                                {/* Request PIN Link Only - Removed Forgot Password */}
-                                <div className="flex justify-center items-center -mt-2">
+                                {/* Forgot Password? hidden - not working for now */}
+                                <div className="flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-4 -mt-2">
                                     <button
                                         type="button"
                                         onClick={async () => {
@@ -291,6 +291,130 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                                     </button>
                                 </div>
                             </form>
+                        ) : step === "forgot_password" ? (
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                if (!pin || pin.length !== 6) {
+                                    setError("Please enter a valid 6-digit PIN");
+                                    return;
+                                }
+                                if (!newPassword || newPassword.length < 6) {
+                                    setError("Password must be at least 6 characters");
+                                    return;
+                                }
+                                setLoading(true);
+                                setError("");
+                                try {
+                                    const response = await authService.resetPassword(email, pin, newPassword);
+                                    if (response?.success || response?.status) {
+                                        await syncLocalCartToBackend();
+                                        onClose();
+                                        window.dispatchEvent(new Event("cart-updated"));
+                                    } else {
+                                        setError(response?.message || "Failed to reset password");
+                                    }
+                                } catch (err: any) {
+                                    setError(
+                                        err?.response?.data?.detail?.msg ||
+                                        err?.response?.data?.message ||
+                                        "Failed to reset password. Please try again."
+                                    );
+                                } finally {
+                                    setLoading(false);
+                                }
+                            }} className="flex flex-col gap-5">
+                                <div className="text-center mb-1">
+                                    <h2 className="text-[28.8px] font-bold text-[#1F1F1F] mb-1 font-sans">
+                                        Forgot Password
+                                    </h2>
+                                    <p className="text-[16px] text-[#6C757D]">Reset code sent to</p>
+                                    <p className="text-[16px] text-[#6C757D]">{email}</p>
+                                    <button
+                                        type="button"
+                                        onClick={() => setStep("email")}
+                                        className="text-[16px] text-[#6C757D] underline hover:opacity-80 block mx-auto"
+                                    >
+                                        Change?
+                                    </button>
+                                </div>
+                                <div className="mb-4">
+                                    <label htmlFor="forgot-pin-input" className="sr-only">PIN</label>
+                                    <input
+                                        id="forgot-pin-input"
+                                        type="text"
+                                        placeholder="Enter 6-digit PIN"
+                                        value={pin}
+                                        onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                                        className="w-full h-[48px] bg-white border border-[#CED4DA] rounded px-4 py-2 text-[16px] text-[#1F1F1F] font-medium placeholder:text-[#A3A3A3] focus:outline-none focus:border-[#1F1F1F] focus:ring-0 transition-all"
+                                        required
+                                        autoFocus
+                                        maxLength={6}
+                                    />
+                                </div>
+                                <div className="mb-4">
+                                    <label htmlFor="new-password-input" className="block text-[10px] font-bold text-gray-400 uppercase ml-2 mt-1 mb-1">New Password</label>
+                                    <div className="relative">
+                                        <input
+                                            id="new-password-input"
+                                            type={showPassword ? "text" : "password"}
+                                            placeholder="At least 6 characters"
+                                            value={newPassword}
+                                            onChange={(e) => setNewPassword(e.target.value)}
+                                            className="w-full h-[48px] bg-white border border-[#CED4DA] rounded px-4 py-2 pr-12 text-[16px] text-[#1F1F1F] font-medium focus:outline-none focus:border-[#1F1F1F] focus:ring-0 transition-all"
+                                            required
+                                            minLength={6}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                        >
+                                            {showPassword ? (
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                                            ) : (
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                                {error && (
+                                    <div className="bg-red-50 border border-red-100 text-red-600 text-xs p-3 rounded-lg">
+                                        {error}
+                                    </div>
+                                )}
+                                <button
+                                    type="submit"
+                                    className="w-full bg-[#232320] text-white py-4 rounded-full font-bold text-[15px] hover:bg-black transition-all shadow-lg"
+                                >
+                                    Update Password
+                                </button>
+                                <div className="flex justify-center gap-4 flex-wrap">
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            try {
+                                                setLoading(true);
+                                                setError("");
+                                                await authService.requestPin(email);
+                                            } catch (err) {
+                                                setError("Failed to resend code");
+                                            } finally {
+                                                setLoading(false);
+                                            }
+                                        }}
+                                        className="text-sm text-[#1F1F1F] hover:opacity-80 underline font-bold"
+                                    >
+                                        Resend Code
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setStep("password"); setPin(""); setNewPassword(""); setError(""); }}
+                                        className="text-sm text-[#1F1F1F] hover:opacity-80 underline font-bold"
+                                    >
+                                        Use Password?
+                                    </button>
+                                </div>
+                            </form>
                         ) : step === "pin" ? (
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
@@ -306,8 +430,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                                     const response = await authService.loginWithPin(email, pin);
                                     if (response.success || response.token || response.status) {
                                         await syncLocalCartToBackend();
-                                        onClose();
-                                        window.dispatchEvent(new Event('cart-updated'));
+                                        setSuccessMessage("Login successful");
                                     } else {
                                         setError(response.message || "Invalid PIN");
                                     }
@@ -419,6 +542,18 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     </>
                 )}
             </div>
+            {successMessage && (
+                <Toast
+                    message={successMessage}
+                    type="success"
+                    duration={2500}
+                    onClose={() => {
+                        setSuccessMessage(null);
+                        onClose();
+                        window.dispatchEvent(new Event("cart-updated"));
+                    }}
+                />
+            )}
         </div>
     );
 };

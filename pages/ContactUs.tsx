@@ -1,11 +1,59 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import axios from "../api/axiosConfig";
 
 const ContactUs: React.FC = () => {
-  const handleSubmit = (e: React.FormEvent) => {
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real app, you would send this data to your backend here.
-    alert("Thank you for contacting us! We will get back to you shortly.");
+    setSubmitting(true);
+    setSubmitMessage(null);
+    try {
+      const res = await axios.post("/api/v1/contact", {
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        comment: comment.trim(),
+      });
+      setSubmitMessage({
+        type: "success",
+        text: (res.data && (res.data as { message?: string }).message) || "Thank you for contacting us! We will get back to you shortly.",
+      });
+      setFirstName("");
+      setLastName("");
+      setEmail("");
+      setPhone("");
+      setComment("");
+    } catch (err: unknown) {
+      const ax = err as { response?: { status?: number; data?: { detail?: unknown } }; message?: string };
+      const status = ax.response?.status;
+      const detail = ax.response?.data?.detail;
+      let msg: string;
+      if (status === 404) {
+        msg = "Contact endpoint not found. Use local backend: set VITE_API_URL=http://localhost:5000 in .env and run backend from newbackend.";
+      } else if (status === 503) {
+        msg = typeof detail === "string" ? detail : "Database not connected. Check backend .env MONGO_URI and run backend from newbackend.";
+      } else if (status === 422) {
+        msg = "Invalid form data. Please check all fields.";
+      } else if (detail && typeof detail === "string") {
+        msg = detail;
+      } else if (ax.message === "Network Error" || !status) {
+        msg = "Cannot reach server. Is the backend running? For local: set VITE_API_URL=http://localhost:5000 and run backend (python app.py) from newbackend.";
+      } else {
+        msg = "Something went wrong. Please try again.";
+      }
+      setSubmitMessage({ type: "error", text: msg });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -118,34 +166,51 @@ const ContactUs: React.FC = () => {
         <div className="flex flex-col lg:flex-row gap-12 lg:gap-24 max-w-[1000px] mx-auto">
           {/* Left: Form */}
           <div className="flex-1">
+            {submitMessage && (
+              <div
+                className={`mb-4 rounded-lg px-4 py-3 text-sm font-medium ${
+                  submitMessage.type === "success"
+                    ? "bg-green-50 text-green-800 border border-green-200"
+                    : "bg-red-50 text-red-800 border border-red-200"
+                }`}
+              >
+                {submitMessage.text}
+              </div>
+            )}
             <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
               <div className="flex flex-col md:flex-row gap-5">
                 <input
                   type="text"
                   placeholder="Enter First Name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
                   className="flex-1 bg-white border border-gray-200 rounded-lg px-4 py-3.5 text-sm font-medium text-[#1F1F1F] outline-none focus:border-[#1F1F1F] focus:ring-0 transition-colors placeholder:text-gray-400"
                   required
                 />
                 <input
                   type="text"
                   placeholder="Enter Last Name"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
                   className="flex-1 bg-white border border-gray-200 rounded-lg px-4 py-3.5 text-sm font-medium text-[#1F1F1F] outline-none focus:border-[#1F1F1F] focus:ring-0 transition-colors placeholder:text-gray-400"
                   required
                 />
               </div>
 
-              
-
               <div className="flex flex-col md:flex-row gap-5">
                 <input
                   type="email"
                   placeholder="Enter Email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="flex-1 bg-white border border-gray-200 rounded-lg px-4 py-3.5 text-sm font-medium text-[#1F1F1F] outline-none focus:border-[#1F1F1F] focus:ring-0 transition-colors placeholder:text-gray-400"
                   required
                 />
                 <input
                   type="tel"
                   placeholder="Enter Phone"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
                   className="flex-1 bg-white border border-gray-200 rounded-lg px-4 py-3.5 text-sm font-medium text-[#1F1F1F] outline-none focus:border-[#1F1F1F] focus:ring-0 transition-colors placeholder:text-gray-400"
                   required
                 />
@@ -154,16 +219,19 @@ const ContactUs: React.FC = () => {
               <textarea
                 placeholder="Write Comment"
                 rows={6}
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
                 className="w-full bg-white border border-gray-200 rounded-lg px-4 py-3.5 text-sm font-medium text-[#1F1F1F] outline-none focus:border-[#1F1F1F] focus:ring-0 transition-colors placeholder:text-gray-400 resize-none"
                 required
-              ></textarea>
+              />
 
               <div className="mt-2">
                 <button
                   type="submit"
-                  className="bg-[#232320] text-white font-bold text-sm uppercase tracking-widest py-4 px-12 rounded hover:bg-black transition-all shadow-lg active:scale-95 w-full md:w-auto"
+                  disabled={submitting}
+                  className="bg-[#232320] text-white font-bold text-sm uppercase tracking-widest py-4 px-12 rounded hover:bg-black transition-all shadow-lg active:scale-95 w-full md:w-auto disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  SUBMIT
+                  {submitting ? "SENDING…" : "SUBMIT"}
                 </button>
               </div>
             </form>

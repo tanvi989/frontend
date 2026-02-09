@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import axios from "../api/axiosConfig";
 import AccountSidebar from "../components/AccountSidebar";
 import { updateProfile, getProfile } from '../api/retailerApis';
+import { getApiErrorMessage } from "../helpers/apiErrors";
 
 interface ProfileData {
   gender: "male" | "female" | null;
@@ -64,6 +65,13 @@ const MyProfile: React.FC = () => {
         if (response && response.data) {
           const data = response.data.data || response.data || {};
 
+          // Do not overwrite with guest user data (guest@multifolks.com) so registered user keeps their email/name
+          const isGuest = data.email === "guest@multifolks.com" || (response.data.data && (response.data.data as any).is_guest === true);
+          if (isGuest) {
+            setLoading(false);
+            return;
+          }
+
           // Update profile data state with backend data
           setProfileData(prev => ({
             ...prev,
@@ -106,9 +114,13 @@ const MyProfile: React.FC = () => {
         }
       } catch (error) {
         console.error('Error fetching profile:', error);
-        // Fallback to localStorage if API fails
+        // On 401 (guest/not logged in) or network error: keep localStorage so registered user sees their name/email
+        const storedName = `${localStorage.getItem("firstName") || ""} ${localStorage.getItem("lastName") || ""}`.trim();
         setProfileData(prev => ({
           ...prev,
+          name: storedName || prev.name,
+          email: localStorage.getItem("email") || prev.email,
+          mobile: localStorage.getItem("phone") || prev.mobile,
           gender: (localStorage.getItem("gender") as "male" | "female") || prev.gender,
           birthDate: localStorage.getItem("birthDate") || prev.birthDate,
           birthMonth: localStorage.getItem("birthMonth") || prev.birthMonth,
@@ -179,8 +191,8 @@ const MyProfile: React.FC = () => {
         }
       } catch (error: any) {
         console.error('❌ Error saving profile data:', error);
-        console.error('Error details:', error?.response?.data);
-        alert(`Failed to save profile data: ${error?.response?.data?.detail || error.message}`);
+        const msg = getApiErrorMessage(error, "Failed to save profile data. Please try again.");
+        alert(msg);
       }
     }
   };
@@ -226,7 +238,7 @@ const MyProfile: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Error saving profile', err);
-      alert(err?.response?.data?.detail || 'Failed to save profile');
+      alert(getApiErrorMessage(err, "Failed to save profile. Please try again."));
     }
   };
 

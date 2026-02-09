@@ -1,11 +1,33 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { trackPurchase } from '@/utils/analytics';
+import { updateOrderWithCart } from '@/api/retailerApis';
+import { clearOrderRelatedStorage } from '@/utils/productFlowStorage';
+
+const PENDING_ORDER_SYNC_KEY = 'multifolks_pending_order_sync';
 
 const PaymentSuccess: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [countdown, setCountdown] = useState(5);
+
+  // Clear product flow and local prescriptions so next order starts fresh
+  useEffect(() => {
+    clearOrderRelatedStorage();
+  }, []);
+
+  // Sync order with cart + totals so order details show correct price (not £0)
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(PENDING_ORDER_SYNC_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw) as { order_id: string; cart_items?: any[]; subtotal?: number; discount_amount?: number; shipping_cost?: number; total_payable?: number };
+      const { order_id, ...payload } = data;
+      if (!order_id) return;
+      sessionStorage.removeItem(PENDING_ORDER_SYNC_KEY);
+      updateOrderWithCart(order_id, payload).catch(() => {});
+    } catch (_) {}
+  }, []);
 
   // GA4: Track purchase on page load (order confirmation)
   useEffect(() => {

@@ -202,16 +202,6 @@ const SignInModal: React.FC<SignInModalProps> = ({
                                 >
                                     Request PIN
                                 </button>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        // Logic to reset password or go back
-                                        onHide();
-                                    }}
-                                    className="text-sm text-gray-500 hover:text-black underline"
-                                >
-                                    Forgot Password?
-                                </button>
                             </div>
                         </form>
                     </>

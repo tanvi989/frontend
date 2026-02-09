@@ -9,6 +9,7 @@ import {
   removeCoupon,
   updateShippingMethod,
   getMyPrescriptions,
+  getCartItemId,
 } from "../api/retailerApis";
 import { CartItem, PrescriptionDetail } from "../types";
 import Loader from "../components/Loader";
@@ -147,24 +148,24 @@ const Cart: React.FC = () => {
   console.log("🛒 Cart Response State:", cartResponse);
   console.log("🛒 Is Loading:", isLoading);
 
-  // Force refetch when returning from prescription pages
-  useEffect(() => {
-    // Check if we're returning from a prescription page
-    const fromPrescription = sessionStorage.getItem("fromPrescription");
-    if (fromPrescription) {
-      console.log("🔄 Returning from prescription page, refetching cart...");
-      refetch();
-      sessionStorage.removeItem("fromPrescription");
-    }
-  }, [refetch]);
 
-  // Fetch User Prescriptions
-  const { data: prescriptionsResponse } = useQuery({
+  // Fetch User/Guest Prescriptions (so "View prescription" shows when they've already added one)
+  const { data: prescriptionsResponse, refetch: refetchPrescriptions } = useQuery({
     queryKey: ["prescriptions"],
     queryFn: () => getMyPrescriptions(),
-    enabled: authData.isAuthenticated,
+    enabled: authData.isAuthenticated || !!localStorage.getItem("guest_id"),
   });
   const userPrescriptions = prescriptionsResponse?.data?.data || [];
+
+  // When returning from prescription page, refetch prescriptions so "View prescription" shows
+  useEffect(() => {
+    const fromPrescription = sessionStorage.getItem("fromPrescription");
+    if (fromPrescription === "true") {
+      sessionStorage.removeItem("fromPrescription");
+      refetch();
+      refetchPrescriptions();
+    }
+  }, [refetch, refetchPrescriptions]);
 
   console.log("🔍 DEBUG prescriptionsResponse RAW:", prescriptionsResponse);
   console.log(
@@ -395,11 +396,15 @@ const Cart: React.FC = () => {
       setSelectedCartId(null);
       await queryClient.cancelQueries({ queryKey: ["cart"] });
       const previous = queryClient.getQueryData(["cart"]);
+      const targetId = Number(cartId);
       queryClient.setQueryData(["cart"], (old: any) => {
         if (!old?.cart) return old;
         return {
           ...old,
-          cart: (old.cart || []).filter((item: any) => Number(item.cart_id) !== Number(cartId)),
+          cart: (old.cart || []).filter((item: any) => {
+            const itemId = getCartItemId(item);
+            return itemId == null || Number(itemId) !== targetId;
+          }),
         };
       });
       return { previous };
@@ -407,9 +412,9 @@ const Cart: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cart"] });
     },
-    onError: (error: any, _cartId, context: any) => {
+    onError: (error: any, cartId, context: any) => {
       console.error("Delete failed:", error);
-      if (context?.previous) queryClient.setQueryData(["cart"], context.previous);
+      // Keep item removed from UI (optimistic update); deleteProductFromCart already synced local cart on API failure
       queryClient.invalidateQueries({ queryKey: ["cart"] });
     },
   });
@@ -425,7 +430,8 @@ const Cart: React.FC = () => {
     pendingDeleteCartIdRef.current = null;
     setDeleteDialog(false);
     setSelectedCartId(null);
-    if (idToDelete != null) handleDeleteItem(idToDelete);
+    const numId = idToDelete != null ? Number(idToDelete) : NaN;
+    if (numId != null && !Number.isNaN(numId)) handleDeleteItem(numId);
   };
 
   // Update Quantity Mutation with optimistic UI
@@ -690,6 +696,9 @@ const Cart: React.FC = () => {
               navigate={(path, state) => navigate(path, { state })}
               authData={authData}
               setShowLoginModal={setShowLoginModal}
+              userPrescriptions={userPrescriptions}
+              refetchPrescriptions={refetchPrescriptions}
+              refetchCart={refetch}
             />
           ) : (
             /* Re-use the empty state from DesktopCart or keep it here for mobile */

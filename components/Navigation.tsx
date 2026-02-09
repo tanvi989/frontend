@@ -211,7 +211,7 @@ export const Navigation: React.FC = () => {
   return (
     <>
       <header
-        className={`w-full h-[120px] flex items-center justify-center fixed top-0 left-0 right-0 z-50 font-sans transition-all duration-300 ${effectiveScrolled || isMobileMenuOpen ? "bg-white" : "bg-transparent"
+        className={`w-full h-[120px] flex items-center justify-center fixed top-0 left-0 right-0 z-50 font-sans transition-all duration-300 overflow-visible ${effectiveScrolled || isMobileMenuOpen ? "bg-white" : "bg-transparent"
           }`}
         style={{
           transform: "translateZ(0)",
@@ -282,7 +282,13 @@ export const Navigation: React.FC = () => {
                 onClick={() => setIsGetMyFitPopupOpen(true)}
                 className="text-white hover:text-[#F3CB0A] transition-colors text-[15px] font-normal whitespace-nowrap"
               >
-                Get My Fit
+                MFit
+              </button>
+              <button
+                onClick={() => navigate('/perfect-fit')}
+                className="text-white hover:text-[#F3CB0A] transition-colors text-[15px] font-normal whitespace-nowrap"
+              >
+                Perfect Fit
               </button>
             </nav>
             <div className="flex items-center gap-2 ml-2 relative">
@@ -536,22 +542,24 @@ export const Navigation: React.FC = () => {
 
         {activeDropdown === "multifocals" && !isSearchOpen && (
           <>
-            {/* Main Dropdown Container */}
+            {/* Full-width wrapper to center dropdown in viewport */}
             <div
-              className="absolute top-[90px] left-1/2 transform -translate-x-1/2 w-[95%] max-w-7xl animate-in fade-in slide-in-from-top-2 duration-200"
+              className="absolute top-[90px] left-0 right-0 flex justify-center px-0 z-50 animate-in fade-in slide-in-from-top-2 duration-200"
               onMouseEnter={() => handleMouseEnter("multifocals")}
               onMouseLeave={handleMouseLeave}
             >
-              {/* Beige Background Container */}
-              <div className="bg-[#F0EBE4] p-4 sm:p-6 rounded-3xl shadow-2xl">
-                <div className="w-full mx-auto">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+              {/* Main Dropdown Container - centered by flex parent */}
+              <div className="w-[95vw] max-w-7xl min-w-0">
+                {/* Beige Background Container */}
+                <div className="bg-[#F0EBE4] p-4 sm:p-6 rounded-3xl shadow-2xl overflow-visible">
+                <div className="w-full mx-auto min-w-0">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 min-w-0">
                     {/* Card 1 - Buying First */}
                     <div
-                      className="group flex flex-col cursor-pointer rounded-lg overflow-hidden transition-all duration-300 hover:shadow-xl h-full bg-[#E94D37] hover:bg-white"
+                      className="group flex flex-col cursor-pointer rounded-lg overflow-hidden transition-all duration-300 hover:shadow-xl h-full bg-[#E94D37] hover:bg-white min-w-0"
                       onClick={() => handleLinkClick("/glasses")}
                     >
-                      <div className="p-4 sm:p-6 flex flex-col h-full transition-all duration-300 rounded-lg border-2 border-transparent group-hover:border-red-200">
+                      <div className="p-4 sm:p-6 flex flex-col h-full transition-all duration-300 rounded-lg border-2 border-transparent group-hover:border-red-200 min-w-0">
                         <div className="flex justify-between items-start w-full">
                           {/* Left side - Text content */}
                           <div className="flex-1">
@@ -591,10 +599,10 @@ export const Navigation: React.FC = () => {
 
                     {/* Card 2 - Replacing */}
                     <div
-                      className="group flex flex-col cursor-pointer rounded-lg overflow-hidden transition-all duration-300 hover:shadow-xl h-full bg-[#E94D37] hover:bg-white"
+                      className="group flex flex-col cursor-pointer rounded-lg overflow-hidden transition-all duration-300 hover:shadow-xl h-full bg-[#E94D37] hover:bg-white min-w-0"
                       onClick={() => handleLinkClick("/glasses")}
                     >
-                      <div className="p-4 sm:p-6 flex flex-col h-full transition-all duration-300 rounded-lg border-2 border-transparent group-hover:border-red-200">
+                      <div className="p-4 sm:p-6 flex flex-col h-full transition-all duration-300 rounded-lg border-2 border-transparent group-hover:border-red-200 min-w-0">
                         <div className="flex justify-between items-start w-full">
                           {/* Left side - Text content */}
                           <div className="flex-1">
@@ -634,10 +642,10 @@ export const Navigation: React.FC = () => {
 
                     {/* Card 3 - Browse */}
                     <div
-                      className="group flex flex-col cursor-pointer rounded-lg overflow-hidden transition-all duration-300 hover:shadow-xl h-full bg-[#E94D37] hover:bg-white"
+                      className="group flex flex-col cursor-pointer rounded-lg overflow-hidden transition-all duration-300 hover:shadow-xl h-full bg-[#E94D37] hover:bg-white min-w-0"
                       onClick={() => handleLinkClick("/glasses")}
                     >
-                      <div className="p-4 sm:p-6 flex flex-col h-full transition-all duration-300 rounded-lg border-2 border-transparent group-hover:border-red-200">
+                      <div className="p-4 sm:p-6 flex flex-col h-full transition-all duration-300 rounded-lg border-2 border-transparent group-hover:border-red-200 min-w-0">
                         <div className="flex justify-between items-start w-full">
                           {/* Left side - Text content */}
                           <div className="flex-1">
@@ -677,10 +685,10 @@ export const Navigation: React.FC = () => {
 
                     {/* Card 4 - Style */}
                     <div
-                      className="group flex flex-col cursor-pointer rounded-lg overflow-hidden transition-all duration-300 hover:shadow-xl h-full bg-[#E94D37] hover:bg-white"
+                      className="group flex flex-col cursor-pointer rounded-lg overflow-hidden transition-all duration-300 hover:shadow-xl h-full bg-[#E94D37] hover:bg-white min-w-0"
                       onClick={() => handleLinkClick("/glasses")}
                     >
-                      <div className="p-4 sm:p-6 flex flex-col h-full transition-all duration-300 rounded-lg border-2 border-transparent group-hover:border-red-200">
+                      <div className="p-4 sm:p-6 flex flex-col h-full transition-all duration-300 rounded-lg border-2 border-transparent group-hover:border-red-200 min-w-0">
                         <div className="flex justify-between items-start w-full">
                           {/* Left side - Text content */}
                           <div className="flex-1">
@@ -720,6 +728,7 @@ export const Navigation: React.FC = () => {
                   </div>
                 </div>
               </div>
+            </div>
             </div>
           </>
         )}
@@ -1196,7 +1205,21 @@ export const Navigation: React.FC = () => {
                     <div className="w-6 h-6 flex items-center justify-center text-gray-600">
                       <i className="fas fa-camera text-lg"></i>
                     </div>
-                    <span>Get My Fit</span>
+                    <span>MFit</span>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => {
+                      navigate('/perfect-fit');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="flex items-center gap-3 text-lg font-medium text-black hover:bg-gray-100 p-3 rounded-lg transition-all duration-200 border-b border-gray-200 w-full text-left"
+                  >
+                    <div className="w-6 h-6 flex items-center justify-center text-gray-600">
+                      <i className="fas fa-glasses text-lg"></i>
+                    </div>
+                    <span>Perfect Fit</span>
                   </button>
                 </li>
                 <li>
@@ -1255,7 +1278,7 @@ export const Navigation: React.FC = () => {
         </div>
       </div>
 
-      {/* Floating Get My Fit Button for Mobile */}
+      {/* Floating MFit Button for Mobile */}
       {!isGetMyFitPopupOpen && (
         <button
           onClick={() => setIsGetMyFitPopupOpen(true)}
@@ -1318,13 +1341,13 @@ export const Navigation: React.FC = () => {
         withAuthBackground={true}
       />
 
-      {/* Get My Fit / Camera Modal */}
+      {/* MFit / Camera Modal */}
       <GetMyFitModal
         open={isGetMyFitOpen}
         onClose={() => setIsGetMyFitOpen(false)}
       />
 
-      {/* Get My Fit Popup */}
+      {/* MFit Popup */}
       <GetMyFitPopup
         open={isGetMyFitPopupOpen}
         onClose={() => setIsGetMyFitPopupOpen(false)}

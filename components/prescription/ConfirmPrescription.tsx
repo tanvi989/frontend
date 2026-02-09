@@ -81,9 +81,9 @@ const ConfirmPrescription: React.FC<ConfirmPrescriptionProps> = ({
                                 onClick={onEdit}
                                 title="Click to edit"
                             >
-                                {savedValues.hasDualPD
-                                    ? `${savedValues.pdRight} (R) / ${savedValues.pdLeft} (L)`
-                                    : savedValues.pdSingle}
+                                {(savedValues.hasDualPD || savedValues.pdRight || savedValues.pdLeft)
+                                    ? `${savedValues.pdRight || "—"} (R) / ${savedValues.pdLeft || "—"} (L) mm`
+                                    : (savedValues.pdSingle ? `${savedValues.pdSingle} mm` : "—")}
                             </span>
                         </div>
 

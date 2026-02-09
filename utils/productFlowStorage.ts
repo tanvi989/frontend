@@ -22,6 +22,12 @@ export type ProductFlowState = {
   lensCategory?: string;
   cart_id?: number;
   updatedAt?: number;
+  /** PD option from select-prescription-source: "know" | "generate" */
+  pdPreference?: string;
+  pdType?: "single" | "dual";
+  pdSingle?: string;
+  pdRight?: string;
+  pdLeft?: string;
   [key: string]: unknown;
 };
 
@@ -89,4 +95,30 @@ export function saveLensSelection(
 /** Save cart_id after add to cart */
 export function saveCartId(productId: string, cart_id: number): void {
   setProductFlow(productId, { cart_id });
+}
+
+/** Clear all product flow state (e.g. after order success / thank-you page) */
+export function clearAllProductFlows(): void {
+  try {
+    const storage = getStorage();
+    const keys: string[] = [];
+    for (let i = 0; i < storage.length; i++) {
+      const key = storage.key(i);
+      if (key && key.startsWith(PREFIX)) keys.push(key);
+    }
+    keys.forEach((k) => storage.removeItem(k));
+  } catch {}
+}
+
+/** Clear all order-related local data when user lands on thank-you / order success (product flows, local prescriptions) */
+export function clearOrderRelatedStorage(): void {
+  try {
+    clearAllProductFlows();
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("prescriptions", "[]");
+    }
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.setItem("productPrescriptions", "{}");
+    }
+  } catch {}
 }

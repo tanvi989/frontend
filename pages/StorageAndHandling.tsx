@@ -15,80 +15,88 @@ const StorageAndHandling: React.FC = () => {
           </span>
         </div>
 
-        <h1 className="text-[28px] md:text-[32px] font-medium uppercase tracking-wide mb-8">
-          Storage and Handling Tips for Multifocal Glasses
-        </h1>
+        <main>
+          <article>
+            <header className="mb-8">
+              <h1 className="text-[28px] md:text-[32px] font-medium uppercase tracking-wide mb-6">
+                Storage and Handling Tips for Multifocal Glasses
+              </h1>
+              <p className="text-[#333] text-base font-medium leading-relaxed">
+                Multifocal lenses are precision-crafted, and proper handling helps maintain their alignment and performance. Small habits make a big difference in preventing scratches, warping, or coating damage.
+              </p>
+            </header>
 
-        <div className="space-y-10 text-[#333] text-base font-medium leading-relaxed border-b border-gray-200 pb-8 mb-8">
-          <section>
-            <h3 className="text-lg font-bold text-[#1F1F1F] mb-3">
-              Storage Guidelines
-            </h3>
-            <div className="space-y-4">
-              <div>
-                <h4 className="font-bold text-[#1F1F1F] mb-1">
-                  Always use a hard case.
-                </h4>
-                <p className="text-[#525252]">
-                  Store your glasses in a rigid case lined with soft material.
-                  Pouches alone do not offer enough protection.
-                </p>
-              </div>
-              <div>
-                <h4 className="font-bold text-[#1F1F1F] mb-1">
-                  Never place lenses face-down.
-                </h4>
-                <p className="text-[#525252]">
-                  Always rest glasses with the lenses facing upward to avoid
-                  pressure and scratches.
-                </p>
-              </div>
-              <div>
-                <h4 className="font-bold text-[#1F1F1F] mb-1">
-                  Avoid extreme heat.
-                </h4>
-                <p className="text-[#525252]">
-                  Leaving glasses on a car dashboard can expose them to
-                  temperatures over 60°C (140°F), which can warp frames and
-                  damage coatings.
-                </p>
-              </div>
-            </div>
-          </section>
+            <div className="space-y-10 text-[#333] text-base font-medium leading-relaxed border-b border-gray-200 pb-8 mb-8">
+              <section aria-labelledby="storage-guidelines">
+                <h2 id="storage-guidelines" className="text-xl font-bold text-[#1F1F1F] mb-4">
+                  Storage Guidelines
+                </h2>
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="font-bold text-[#1F1F1F] mb-1">
+                      Always use a hard case.
+                    </h3>
+                    <p>
+                      Store your glasses in a rigid case lined with soft material. Pouches alone do not offer enough protection.
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-[#1F1F1F] mb-1">
+                      Never place lenses face-down.
+                    </h3>
+                    <p>
+                      Always rest glasses with the lenses facing upward to avoid pressure and scratches.
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-[#1F1F1F] mb-1">
+                      Avoid extreme heat.
+                    </h3>
+                    <p>
+                      Leaving glasses on a car dashboard can expose them to temperatures over 60°C (140°F), which can warp frames and damage coatings.
+                    </p>
+                  </div>
+                </div>
+              </section>
 
-          <section>
-            <h3 className="text-lg font-bold text-[#1F1F1F] mb-3">
-              Handling Habits
-            </h3>
-            <div className="space-y-4">
-              <div>
-                <h4 className="font-bold text-[#1F1F1F] mb-1">
-                  Use both hands to put on or remove glasses.
-                </h4>
-                <p className="text-[#525252]">
-                  This prevents accidental bending or misalignment of the frame.
-                </p>
-              </div>
-              <div>
-                <h4 className="font-bold text-[#1F1F1F] mb-1">
-                  Hold at the bridge when cleaning.
-                </h4>
-                <p className="text-[#525252]">
-                  Holding by the temples can twist the frame over time.
-                </p>
-              </div>
-              <div>
-                <h4 className="font-bold text-[#1F1F1F] mb-1">
-                  Skip the “headband” habit.
-                </h4>
-                <p className="text-[#525252]">
-                  Wearing glasses on your head stretches the temples and changes
-                  the fit.
-                </p>
-              </div>
+              <section aria-labelledby="handling-habits">
+                <h2 id="handling-habits" className="text-xl font-bold text-[#1F1F1F] mb-4">
+                  Handling Habits
+                </h2>
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="font-bold text-[#1F1F1F] mb-1">
+                      Use both hands to put on or remove glasses.
+                    </h3>
+                    <p>
+                      This prevents accidental bending or misalignment of the frame.
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-[#1F1F1F] mb-1">
+                      Hold at the bridge when cleaning.
+                    </h3>
+                    <p>
+                      Holding by the temples can twist the frame over time.
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-[#1F1F1F] mb-1">
+                      Skip the &quot;headband&quot; habit.
+                    </h3>
+                    <p>
+                      Wearing glasses on your head stretches the temples and changes the fit.
+                    </p>
+                  </div>
+                </div>
+              </section>
             </div>
-          </section>
-        </div>
+
+            <p className="text-[#333] text-base font-medium leading-relaxed">
+              Multifocal lenses include progressives, trifocal and bifocal — all designed to help you see clearly at multiple distances.
+            </p>
+          </article>
+        </main>
       </div>
     </div>
   );

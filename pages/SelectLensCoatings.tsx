@@ -154,6 +154,11 @@ const SelectLensCoatings: React.FC = () => {
           lensCategory: state?.lensCategory ?? flow?.lensCategory,
           lensType: state?.lensType ?? flow?.lensType,
           prescriptionTier: state?.prescriptionTier ?? flow?.prescriptionTier,
+          pdPreference: state?.pdPreference ?? flow?.pdPreference,
+          pdType: state?.pdType ?? flow?.pdType,
+          pdSingle: state?.pdSingle ?? flow?.pdSingle,
+          pdRight: state?.pdRight ?? flow?.pdRight,
+          pdLeft: state?.pdLeft ?? flow?.pdLeft,
         });
       }
 
@@ -185,12 +190,17 @@ const SelectLensCoatings: React.FC = () => {
       }
       const coatingPrice = selectedCoatingOption?.priceValue ?? 0;
 
-      // 1) Add product to cart with full pricing (frame + lens + coating)
+      // 1) Add product to cart with full pricing (frame + lens + coating) and PD details for final order
       const addToCartResponse: any = await addToCart(productToAdd, "instant", undefined, {
         lensPackagePrice,
         coatingPrice,
         lensPackage,
         coatingTitle: selectedCoatingOption?.title,
+        pdPreference: state?.pdPreference ?? flow?.pdPreference,
+        pdType: state?.pdType ?? flow?.pdType,
+        pdSingle: state?.pdSingle ?? flow?.pdSingle,
+        pdRight: state?.pdRight ?? flow?.pdRight,
+        pdLeft: state?.pdLeft ?? flow?.pdLeft,
       });
       console.log("DEBUG: addToCart full response:", addToCartResponse);
       trackAddToCart(productToAdd, 1);

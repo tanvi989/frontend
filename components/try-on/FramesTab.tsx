@@ -22,7 +22,8 @@ const URL_FRAME_CONFIGS: { skuid: string; name: string }[] = [
   { skuid: 'E10A8617', name: 'E10A8617' },
 ];
 
-const DEFAULT_OFFSETS: FrameOffsets = { offsetX: 0, offsetY: 0, scaleAdjust: 1.0, rotationAdjust: 0 };
+/** Defaults for exact fit on face (Horizontal -14px, Vertical -23px, Size 130%) */
+const DEFAULT_OFFSETS: FrameOffsets = { offsetX: -14, offsetY: -23, scaleAdjust: 1.3, rotationAdjust: 0 };
 
 /** Filter range: show frames in [faceWidth, faceWidth + 15] */
 const FACE_WIDTH_RANGE_MM = 15;
@@ -80,10 +81,11 @@ interface AdjustmentValues {
   rotationAdjust: number;
 }
 
+/** Defaults for exact fit on face (Horizontal -14px, Vertical -23px, Size 130%, Rotation 0°) */
 const DEFAULT_ADJUSTMENTS: AdjustmentValues = {
-  offsetX: 0,
-  offsetY: 0,
-  scaleAdjust: 1.0,
+  offsetX: -14,
+  offsetY: -23,
+  scaleAdjust: 1.3,
   rotationAdjust: 0,
 };
 
@@ -163,11 +165,10 @@ function computeFrameTransform(
   const FRAME_PNG_BASE_WIDTH = 400;
   const scaleFactor = desiredFrameWidthPx / FRAME_PNG_BASE_WIDTH;
 
-  // Position: horizontal = bridge; vertical = bridge + half lens height (align frame with face using lens height)
+  // Position: horizontal = bridge; vertical = EYE LINE so frame aligns with eyes (same line user aligned to)
   const midX = bridgeDisplay.x;
-  const lensHeightMm = frame.lensHeight ?? Math.round((frame.lensWidth ?? 50) * 0.6);
-  const verticalOffsetMm = 4 + lensHeightMm / 2;
-  const midY = bridgeDisplay.y + (verticalOffsetMm / mmPerPixel);
+  const eyeLineY = (leftEyeDisplay.y + rightEyeDisplay.y) / 2;
+  const midY = eyeLineY;
 
   // Same as perfect-fit-cam: fit classification
   const diff = frame.width - faceWidthMm;
@@ -359,6 +360,30 @@ export function FramesTab() {
     setContainerSize({ width: img.clientWidth, height: img.clientHeight });
     setImageNaturalSize({ width: img.naturalWidth, height: img.naturalHeight });
   };
+
+  /** Returns crop rect (full image coords) for the visible object-cover region. Used so /glasses can map landmarks to cropped image. */
+  const getCropRect = useCallback((): { fullWidth: number; fullHeight: number; sx: number; sy: number; sw: number; sh: number } | null => {
+    const img = imageRef.current;
+    const container = containerRef.current;
+    if (!img || !container) return null;
+    const naturalW = img.naturalWidth;
+    const naturalH = img.naturalHeight;
+    const containerW = container.clientWidth;
+    const containerH = container.clientHeight;
+    if (naturalW <= 0 || naturalH <= 0 || containerW <= 0 || containerH <= 0) return null;
+    const scale = Math.max(containerW / naturalW, containerH / naturalH);
+    const offsetX = (containerW - naturalW * scale) / 2;
+    const offsetY = (containerH - naturalH * scale) / 2;
+    let sx = (-offsetX) / scale;
+    let sy = (-offsetY) / scale;
+    let sw = containerW / scale;
+    let sh = containerH / scale;
+    sx = Math.max(0, Math.min(sx, naturalW));
+    sy = Math.max(0, Math.min(sy, naturalH));
+    sw = Math.max(1, Math.min(sw, naturalW - sx));
+    sh = Math.max(1, Math.min(sh, naturalH - sy));
+    return { fullWidth: naturalW, fullHeight: naturalH, sx, sy, sw, sh };
+  }, []);
 
   const getCroppedVisibleDataUrl = useCallback((): string | null => {
     const img = imageRef.current;
@@ -638,10 +663,10 @@ export function FramesTab() {
         )}
       </div>
 
-      {/* Box-sized (passport-style) view: CSS only, no crop – full image with overflow hidden, face centered */}
+      {/* Same size as /glasses product card so VTO preview matches explore page */}
       <div 
         ref={containerRef}
-        className="relative rounded-xl overflow-hidden bg-black aspect-[35/45] shadow-lg max-w-md mx-auto"
+        className="relative rounded-xl overflow-hidden bg-black aspect-[35/45] shadow-lg max-w-[280px] w-full mx-auto"
       >
         <img
           ref={imageRef}
@@ -740,15 +765,20 @@ export function FramesTab() {
           onClick={() => {
             if (capturedData) {
               const cropped = getCroppedVisibleDataUrl();
-              const toSave = cropped
-                ? {
-                    ...capturedData,
-                    // Pass cropped image to /glasses for display
-                    processedImageDataUrl: cropped,
-                    // Also store it separately for thumbnails/product pages
-                    croppedPreviewDataUrl: cropped,
-                  }
-                : capturedData;
+              const cropRect = getCropRect();
+              const toSave = {
+                ...capturedData,
+                // Use cropped image on /glasses so it matches the VTO view; only the frame is swapped per product
+                processedImageDataUrl: cropped ?? capturedData.processedImageDataUrl,
+                ...(cropped ? { croppedPreviewDataUrl: cropped } : {}),
+                ...(cropRect ? { cropRect } : {}),
+                frameAdjustments: {
+                  offsetX: adjustments.offsetX,
+                  offsetY: adjustments.offsetY,
+                  scaleAdjust: adjustments.scaleAdjust,
+                  rotationAdjust: adjustments.rotationAdjust,
+                },
+              };
               saveCaptureSession(toSave);
             }
             // close MFIT popup if it's open

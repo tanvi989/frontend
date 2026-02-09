@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getPaymentStatus, getThankYou, sendInvoice } from '../../api/retailerApis';
 import { Loader } from '../Loader';
+import { clearOrderRelatedStorage } from '../../utils/productFlowStorage';
 
 const Thanks: React.FC = () => {
     const { state } = useLocation();
@@ -11,6 +12,11 @@ const Thanks: React.FC = () => {
     
     // Add countdown state for redirect
     const [countdown, setCountdown] = useState(4);
+
+    // Clear product flow and local prescriptions so next order starts fresh
+    useEffect(() => {
+        clearOrderRelatedStorage();
+    }, []);
 
     // Fallback for order_id if accessed directly or missing state
     const orderId = state?.order_id || searchParams.get('order_id');

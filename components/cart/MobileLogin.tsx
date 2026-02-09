@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { authService } from "../../services/authService";
 import { syncLocalCartToBackend } from "../../api/retailerApis";
 import { Loader2 } from "../Loader";
+import Toast from "../Toast";
 
 interface MobileLoginProps {
     open: boolean;
@@ -24,6 +25,7 @@ export const MobileLogin: React.FC<MobileLoginProps> = ({
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [showPassword, setShowPassword] = useState(false);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
     useEffect(() => {
         if (open) {
@@ -81,12 +83,10 @@ export const MobileLogin: React.FC<MobileLoginProps> = ({
             const response = await authService.login(email, password);
             // login handles storage and event dispatch
 
-            if (response.success || response.token || response.status) {
-                // Sync guest cart to authenticated user cart
+            const token = response?.token ?? response?.data?.token;
+            if (response?.success || token || response?.status) {
                 await syncLocalCartToBackend();
-                onClose();
-                // Dispatch event to refresh cart
-                window.dispatchEvent(new Event('cart-updated'));
+                setSuccessMessage("Login successful");
             } else {
                 setError(response.message || "Invalid credentials");
             }
@@ -209,23 +209,6 @@ export const MobileLogin: React.FC<MobileLoginProps> = ({
                                             >
                                                 Login with PIN?
                                             </button>
-                                            <button
-                                                type="button"
-                                                onClick={async () => {
-                                                    try {
-                                                        setLoading(true);
-                                                        await authService.requestPin(email);
-                                                        setStep("forgot_password");
-                                                    } catch (err) {
-                                                        setError("Failed to request reset PIN");
-                                                    } finally {
-                                                        setLoading(false);
-                                                    }
-                                                }}
-                                                className="text-sm font-bold underline text-[#1F1F1F]"
-                                            >
-                                                Forgot Password?
-                                            </button>
                                         </div>
                                     </form>
                                 </div>
@@ -289,8 +272,7 @@ export const MobileLogin: React.FC<MobileLoginProps> = ({
                                             const response = await authService.loginWithPin(email, pin);
                                             if (response.success || response.token || response.status) {
                                                 await syncLocalCartToBackend();
-                                                onClose();
-                                                window.dispatchEvent(new Event('cart-updated'));
+                                                setSuccessMessage("Login successful");
                                             } else {
                                                 setError(response.message || "Invalid PIN");
                                             }
@@ -360,8 +342,7 @@ export const MobileLogin: React.FC<MobileLoginProps> = ({
                                             const response = await authService.resetPassword(email, pin, newPassword);
                                             if (response.success || response.status) {
                                                 await syncLocalCartToBackend();
-                                                onClose();
-                                                window.dispatchEvent(new Event('cart-updated'));
+                                                setSuccessMessage("Login successful");
                                             } else { setError(response.message || "Failed to reset password"); }
                                         } catch (err: any) { setError(err?.response?.data?.detail?.msg || err?.response?.data?.message || "Failed to reset password. Please try again."); } finally { setLoading(false); }
                                     }} className="flex flex-col gap-6">
@@ -419,6 +400,18 @@ export const MobileLogin: React.FC<MobileLoginProps> = ({
                     )}
                 </div>
             </div>
+            {successMessage && (
+                <Toast
+                    message={successMessage}
+                    type="success"
+                    duration={2500}
+                    onClose={() => {
+                        setSuccessMessage(null);
+                        onClose();
+                        window.dispatchEvent(new Event("cart-updated"));
+                    }}
+                />
+            )}
         </div>
     );
 };

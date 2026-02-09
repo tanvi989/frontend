@@ -43,7 +43,7 @@ export function MeasurementsTab() {
         </div>
       </div>
 
-      {/* Face Width + Face Shape (requested layout) */}
+      {/* Face Width + Face Shape */}
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-gray-100 p-4 rounded-2xl">
           <p className="text-[9px] font-bold text-gray-500 uppercase mb-1">Face Width</p>
@@ -70,26 +70,6 @@ export function MeasurementsTab() {
       >
         View MFIT Collection
       </button>
-
-      {/*
-      Bridge Stats (commented out for now)
-      <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
-        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-3">Nose Bridge (mm)</p>
-        <div className="flex justify-between">
-          <div className="flex gap-10">
-            <div>
-              <p className="text-[8px] font-bold text-gray-400 uppercase">Left</p>
-              <p className="text-lg font-bold">{formatVal(measurements?.nose_bridge_left)}</p>
-            </div>
-            <div>
-              <p className="text-[8px] font-bold text-gray-400 uppercase">Right</p>
-              <p className="text-lg font-bold">{formatVal(measurements?.nose_bridge_right)}</p>
-            </div>
-          </div>
-          <Activity className="w-5 h-5 text-gray-300" />
-        </div>
-      </div>
-      */}
     </div>
   );
 }

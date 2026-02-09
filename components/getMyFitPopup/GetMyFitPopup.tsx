@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import GetMyFitPopupMobile from './GetMyFitPopupMobile';
 import { useCaptureData } from '@/contexts/CaptureContext';
 import { detectGlasses, removeGlasses, detectLandmarks } from '@/services/glassesApi';
+import { cropToPassportStyle } from '@/utils/passportCrop';
 import { MeasurementsTab } from '@/components/try-on/MeasurementsTab';
 import { FramesTab } from '@/components/try-on/FramesTab';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -76,7 +77,7 @@ const GetMyFitPopup: React.FC<GetMyFitPopupProps> = ({ open, onClose, initialSte
     } else if (currentStep === '2') {
       speak('Great! Now, tuck your hair behind your ears and keep your glasses on if you wear them.');
     } else if (currentStep === '3' && !capturedImageData && !isProcessing) {
-      speak('Position your face in the oval. We will capture when everything is aligned.');
+      speak('Align your eyes with the blue horizontal line. Keep your eyes on the line for accurate glasses try-on. We will capture when everything is aligned.');
     }
   }, [open, currentStep, speak]);
 
@@ -224,15 +225,21 @@ const GetMyFitPopup: React.FC<GetMyFitPopupProps> = ({ open, onClose, initialSte
         throw new Error('Failed to get measurements');
       }
 
+      setProcessingStep('Preparing passport-style photo...');
+      const passport = await cropToPassportStyle(processedUrl, landmarks);
+      const finalImage = passport?.croppedDataUrl ?? processedUrl;
+      const cropRect = passport?.cropRect;
+
       setCapturedData({
         imageDataUrl: originalUrl,
-        processedImageDataUrl: processedUrl,
+        processedImageDataUrl: finalImage,
         glassesDetected,
-        landmarks: landmarks,
+        landmarks,
         measurements: measureResult.landmarks.mm,
         faceShape: measureResult.landmarks.face_shape,
         apiResponse: measureResult,
         timestamp: Date.now(),
+        ...(cropRect ? { cropRect } : {}),
       });
 
       setIsProcessing(false);

@@ -7,7 +7,8 @@ export default defineConfig(({ mode }) => {
   // Load environment variables starting with VITE_
   const env = loadEnv(mode, process.cwd(), 'VITE_');
 
-  const proxyTarget = env.VITE_API_TARGET || 'https://finalbackend.multifolks.com';
+  const proxyTarget = env.VITE_API_TARGET || env.VITE_API_URL || 'http://localhost:5000';
+  const isLocalBackend = proxyTarget.includes('localhost');
   const vtobTarget = env.VITE_GETMYFIT_API_BASE || 'https://vtob.multifolks.com';
 
   console.log("---------------------------------------------------");
@@ -17,7 +18,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     server: {
-      port: 3000,
+      port: 3001,
       host: '0.0.0.0',
 
       proxy: {
@@ -32,27 +33,27 @@ export default defineConfig(({ mode }) => {
         '/api/v1': {
           target: proxyTarget,
           changeOrigin: true,
-          secure: true, // HTTPS enabled
+          secure: !isLocalBackend,
         },
         '/api/profile': {
           target: proxyTarget,
           changeOrigin: true,
-          secure: true,
+          secure: !isLocalBackend,
         },
         '/api/health': {
           target: proxyTarget,
           changeOrigin: true,
-          secure: true,
+          secure: !isLocalBackend,
         },
         '/retailer': {
           target: proxyTarget,
           changeOrigin: true,
-          secure: true,
+          secure: !isLocalBackend,
         },
         '/accounts': {
           target: proxyTarget,
           changeOrigin: true,
-          secure: true,
+          secure: !isLocalBackend,
         },
       },
 
@@ -63,7 +64,7 @@ export default defineConfig(({ mode }) => {
 
     // ✅ Updated preview: allow your production domain
     preview: {
-      port: 3000,
+      port: 3001,
       host: '0.0.0.0',
       allowedHosts: [
         '82.112.238.249',
@@ -86,6 +87,7 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        '@pf': path.resolve(__dirname, 'perfect-fit-cam'),
       },
     },
 

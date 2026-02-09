@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import moment from "moment";
@@ -6,6 +6,7 @@ import {
   getOrderDetails,
   getThankYou,
   payPartialAmount,
+  getMyPrescriptions,
 } from "../api/retailerApis";
 import { Loader } from "./Loader";
 import PrescriptionViewer from "./PrescriptionViewer";
@@ -61,11 +62,60 @@ const OrderView: React.FC<OrderViewProps> = () => {
     retry: false,
   });
 
+  // Account-stored prescriptions: used as fallback when order cart item has no prescription
+  const { data: apiPrescriptions } = useQuery({
+    queryKey: ["prescriptions"],
+    queryFn: () => getMyPrescriptions(),
+    enabled: !!(data?.order?.order_id),
+    retry: false,
+  });
+  const accountPrescriptions: any[] = useMemo(() => {
+    const raw = apiPrescriptions?.data?.data ?? apiPrescriptions?.data;
+    return Array.isArray(raw) ? raw : [];
+  }, [apiPrescriptions]);
+
   useEffect(() => {
     if (data) {
       setProductDetails(data);
     }
   }, [data]);
+
+  // Cart with prescription on each item: from order (cart + metadata.prescriptions) then fallback to account-stored
+  const cartWithPrescription = useMemo(() => {
+    const order = productDetails?.order;
+    if (!order?.cart || !Array.isArray(order.cart)) return [];
+    const metaList: any[] = order.metadata?.prescriptions ?? [];
+    const byCartId = new Map<number, any>();
+    const byProductId = new Map<string, any>();
+    metaList.forEach((p: any) => {
+      const cartId = p.cart_id ?? p.cartId;
+      const productId = p.product_id ?? p.productId;
+      const pres = p.prescription ?? p;
+      if (cartId != null) byCartId.set(Number(cartId), pres);
+      if (productId != null) byProductId.set(String(productId), pres);
+    });
+    const accountByProduct = new Map<string, any>();
+    accountPrescriptions.forEach((p: any) => {
+      const sku = p?.data?.associatedProduct?.productSku ?? p?.associatedProduct?.productSku;
+      if (sku != null) accountByProduct.set(String(sku), p);
+    });
+
+    return order.cart.map((item: any) => {
+      const cartId = item.cart_id ?? item.cartId;
+      const productId = item.product_id ?? item.product?.products?.skuid ?? item.product?.products?.id;
+      const productIdStr = productId != null ? String(productId) : "";
+      const fromOrder = item.prescription ?? byCartId.get(Number(cartId)) ?? byProductId.get(productIdStr);
+      const fromAccount = !fromOrder && productIdStr ? accountByProduct.get(productIdStr) : null;
+      const prescription = fromOrder ?? (fromAccount ? {
+        type: fromAccount.type,
+        name: fromAccount.name,
+        image_url: fromAccount.image_url ?? fromAccount.data?.image_url,
+        data: fromAccount.data,
+        created_at: fromAccount.created_at,
+      } : null);
+      return prescription ? { ...item, prescription } : item;
+    });
+  }, [productDetails?.order, accountPrescriptions]);
 
   if (isLoading || loading) {
     return <Loader />;
@@ -304,7 +354,7 @@ const OrderView: React.FC<OrderViewProps> = () => {
           </div>
 
           <div className="bg-white rounded-xl shadow-soft border border-gray-100 overflow-hidden">
-            {productDetails?.order?.cart?.map(
+            {(cartWithPrescription.length > 0 ? cartWithPrescription : productDetails?.order?.cart ?? []).map(
               (cartItem: any, index: number) => (
                 <div
                   key={index}

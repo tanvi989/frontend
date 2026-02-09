@@ -1,183 +1,163 @@
 import React from "react";
 import { Link } from "react-router-dom";
 
-const ChoosingRightFrame: React.FC = () => {
+const PickRightLens: React.FC = () => {
   return (
     <div className="min-h-screen bg-white font-sans pt-16 pb-24 text-[#1F1F1F]">
       <div className="max-w-[1000px] mx-auto px-6 md:px-8">
-        {/* Optional Breadcrumb */}
         <div className="mb-8 hidden md:block">
           <span className="bg-[#F3F0E7] px-3 py-1 rounded text-xs font-bold text-[#1F1F1F] uppercase tracking-widest inline-flex items-center gap-2">
             <Link to="/" className="hover:underline">
               Home
             </Link>
             <span>/</span>
-            <span>Choosing the Right Frame</span>
+            <span>Pick the Right Lens</span>
           </span>
         </div>
 
-        <h1 className="text-[28px] md:text-[32px] font-medium uppercase tracking-wide mb-8">
-          Choosing the Right Frame for Progressive Lenses
-        </h1>
+        <main>
+          <article>
+            <header className="mb-8">
+              <h1 className="text-[28px] md:text-[32px] font-medium uppercase tracking-wide mb-6">
+                How to Pick the Right Lens Material and Thickness
+              </h1>
+              <p className="text-[#333] text-base font-medium leading-relaxed">
+                The choice of lens is an important consideration in multifocals because comfort and clarity depend on lens performance.
+              </p>
+            </header>
 
-        <div className="space-y-10 text-[#333] text-base font-medium leading-relaxed border-b border-gray-200 pb-8 mb-8">
-          <section>
-            <p className="mb-4">
-              Progressive lenses work as intended when the frame is right. Too
-              narrow, too shallow, or poorly fitted frames can make adapting
-              harder.
-            </p>
-            <p>
-              Here is how to choose a frame that brings out the best in your
-              progressive lenses while still suiting your style.
-            </p>
-          </section>
+            <div className="space-y-10 text-[#333] text-base font-medium leading-relaxed border-b border-gray-200 pb-8 mb-8">
+              <section aria-labelledby="why-thickness">
+                <h2 id="why-thickness" className="text-xl font-bold text-[#1F1F1F] mb-3">
+                  Why Lens Thickness Matters
+                </h2>
+                <p className="mb-4">
+                  The stronger your prescription, the more your lenses need to bend light. Traditionally, this meant thicker, heavier lenses.
+                </p>
+                <p>
+                  Modern lens technology has changed that. Today, choosing the right lens index can make your glasses dramatically thinner and lighter, even for high prescriptions.
+                </p>
+              </section>
 
-          <section>
-            <h3 className="text-lg font-bold text-[#1F1F1F] mb-3">
-              1. Choose Frames with Enough Vertical Depth
-            </h3>
-            <p className="mb-4">
-              Progressive lenses contain three vision zones stacked vertically:
-              distance (top), intermediate (middle), and near (bottom). If your
-              frame is too shallow, those zones get squeezed, and you will end
-              up moving your head around uncomfortably to find the “sweet spot.”
-            </p>
-            <p className="mb-2 font-bold text-[#1F1F1F]">What to look for:</p>
-            <ul className="list-disc pl-5 space-y-2 text-[#525252]">
-              <li>A minimum lens height of 30–36mm.</li>
-              <li>“Tall rectangle” or “deep oval” styles work best.</li>
-              <li>
-                Avoid very narrow rectangles, rimless half-frames, or
-                ultra-short lenses.
-              </li>
-            </ul>
-            <p className="mt-4 text-sm text-[#525252] italic">
-              Think of vertical depth as “breathing room” for your lenses — the
-              more space, the smoother the transition between zones.
-            </p>
-          </section>
+              <section aria-labelledby="lens-index">
+                <h2 id="lens-index" className="text-xl font-bold text-[#1F1F1F] mb-3">
+                  What is Lens Index?
+                </h2>
+                <p className="mb-4">
+                  Lens index measures how efficiently the material bends light. The higher the index is, the thinner and lighter the lens.
+                </p>
+                <p className="mb-4">Here is a simplified guide:</p>
 
-          <section>
-            <h3 className="text-lg font-bold text-[#1F1F1F] mb-3">
-              2. Comfort is Critical
-            </h3>
-            <p className="mb-4">
-              Even the perfect lens cannot perform if your frame does not sit
-              correctly. Progressives require precise positioning, so frames
-              that slip or tilt can throw off alignment, forcing your eyes to
-              work harder.
-            </p>
-            <p className="mb-2 font-bold text-[#1F1F1F]">
-              How to get a comfortable fit:
-            </p>
-            <ul className="list-disc pl-5 space-y-2 text-[#525252]">
-              <li>Ensure the frame sit is centered and stable on your nose.</li>
-              <li>
-                Adjustable nose pads and flexible arms help keep everything
-                secure.
-              </li>
-              <li>
-                Lightweight materials like TR90, titanium, or acetate reduce
-                pressure points, making long wear more comfortable.
-              </li>
-            </ul>
-          </section>
+                <div className="overflow-x-auto border border-gray-200 rounded-lg mb-6">
+                  <table className="w-full text-sm text-left" summary="Lens index guide: index, best for, prescription range, why choose it">
+                    <thead>
+                      <tr className="bg-[#F3F0E7] text-[#1F1F1F] font-bold">
+                        <th className="px-4 py-3 border-b border-r border-gray-200">Index</th>
+                        <th className="px-4 py-3 border-b border-r border-gray-200">Best For</th>
+                        <th className="px-4 py-3 border-b border-r border-gray-200">Prescription Range</th>
+                        <th className="px-4 py-3 border-b border-gray-200">Why Choose It</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      <tr>
+                        <td className="px-4 py-3 border-r border-gray-200 font-medium">1.50</td>
+                        <td className="px-4 py-3 border-r border-gray-200">Mild prescriptions</td>
+                        <td className="px-4 py-3 border-r border-gray-200">SPH ±2.00 or below</td>
+                        <td className="px-4 py-3">Affordable, basic option.</td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-3 border-r border-gray-200 font-medium">1.57</td>
+                        <td className="px-4 py-3 border-r border-gray-200">Mild to moderate</td>
+                        <td className="px-4 py-3 border-r border-gray-200">SPH ±2.00 to ±4.00</td>
+                        <td className="px-4 py-3">Slimmer than standard, cost-effective.</td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-3 border-r border-gray-200 font-medium">1.59 (Polycarbonate)</td>
+                        <td className="px-4 py-3 border-r border-gray-200">Active use, kids</td>
+                        <td className="px-4 py-3 border-r border-gray-200">SPH ±1.00 to ±6.00</td>
+                        <td className="px-4 py-3">Impact-resistant, naturally UV-protective.</td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-3 border-r border-gray-200 font-medium">1.60</td>
+                        <td className="px-4 py-3 border-r border-gray-200">Moderate prescriptions</td>
+                        <td className="px-4 py-3 border-r border-gray-200">SPH ±4.00 to ±6.00</td>
+                        <td className="px-4 py-3">Lightweight and versatile.</td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-3 border-r border-gray-200 font-medium">1.67</td>
+                        <td className="px-4 py-3 border-r border-gray-200">High prescriptions</td>
+                        <td className="px-4 py-3 border-r border-gray-200">SPH ±6.00 to ±9.00</td>
+                        <td className="px-4 py-3">Ultra-thin, sleek, minimal edge thickness.</td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-3 border-r border-gray-200 font-medium">1.74</td>
+                        <td className="px-4 py-3 border-r border-gray-200">Very high prescriptions</td>
+                        <td className="px-4 py-3 border-r border-gray-200">SPH ±9.00 and above</td>
+                        <td className="px-4 py-3">Thinnest available, reduces eye magnification.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
 
-          <section>
-            <h3 className="text-lg font-bold text-[#1F1F1F] mb-3">
-              3. Match the Frame to Your Lifestyle
-            </h3>
-            <p className="mb-4">Your glasses should work where you do.</p>
-            <ul className="list-disc pl-5 space-y-2 text-[#525252]">
-              <li>
-                <strong>All-day professionals:</strong> Lightweight metal or
-                classic full-rim frames.
-              </li>
-              <li>
-                <strong>Active users:</strong> Flexible, impact-resistant frames
-                with spring hinges.
-              </li>
-              <li>
-                <strong>Digital multitaskers:</strong> Wider frames offer a
-                broader intermediate zone — ideal for laptop and desktop work.
-              </li>
-            </ul>
-          </section>
+                <p>
+                  At MultiFolks, every multifocal lens starts at 1.60 index by default (no extra charge), so your glasses are always lightweight and comfortable. For higher prescriptions, we automatically suggest 1.67 or 1.74 to keep your glasses sleek.
+                </p>
+              </section>
 
-          <section>
-            <h3 className="text-lg font-bold text-[#1F1F1F] mb-3">
-              4. Frame Shape Matters
-            </h3>
-            <p className="mb-4">
-              Round, rectangular, and aviator shapes typically work well for
-              progressives because they allow a natural top-to-bottom gaze.
-              Overly angular, geometric, or sharply sloped shapes can cut off
-              your visual pathway.
-            </p>
-          </section>
+              <section aria-labelledby="lens-materials">
+                <h2 id="lens-materials" className="text-xl font-bold text-[#1F1F1F] mb-3">
+                  What About Lens Materials?
+                </h2>
+                <p className="mb-4">
+                  Beyond thickness, the material affects clarity, safety, and comfort.
+                </p>
+                <ul className="list-disc pl-6 space-y-3">
+                  <li>
+                    <strong>Standard Plastic (CR-39):</strong> Affordable and clear, but thicker and less impact-resistant. Best for low prescriptions.
+                  </li>
+                  <li>
+                    <strong>Polycarbonate (1.59 Index):</strong> Lightweight, tough, and UV-blocking by default. Ideal for active users, kids, or rimless frames.
+                  </li>
+                  <li>
+                    <strong>High-Index Plastics (1.60–1.74):</strong> Designed for stronger prescriptions. Thinner, flatter, and more stylish — minimizing the &quot;coke bottle&quot; look.
+                  </li>
+                  <li>
+                    <strong>Trivex (Future Option):</strong> Combines the optical clarity of CR-39 with the strength of polycarbonate (coming soon at MultiFolks).
+                  </li>
+                </ul>
+              </section>
 
-          <section>
-            <h3 className="text-lg font-bold text-[#1F1F1F] mb-3">
-              5. Keep Style Without Sacrifice
-            </h3>
-            <p className="mb-4">
-              Just because progressives are functional does not mean they cannot
-              be fashionable.
-            </p>
-            <p className="mb-2">At MultiFolks, you will find:</p>
-            <ul className="list-disc pl-5 space-y-2 text-[#525252]">
-              <li>
-                Frames designed to be multifocal-friendly without looking
-                clinical.
-              </li>
-              <li>Virtual Try-On so you can test your style before you buy.</li>
-              <li>
-                Frame recommendations tailored to your prescription and face
-                shape, so you never have to guess.
-              </li>
-            </ul>
-          </section>
+              <section aria-labelledby="coatings">
+                <h2 id="coatings" className="text-xl font-bold text-[#1F1F1F] mb-3">
+                  Coatings for Comfort and Protection (Default vs. Add-On)
+                </h2>
+                <p className="mb-3">
+                  Every MultiFolks lens includes, at no extra cost:
+                </p>
+                <ul className="list-disc pl-6 space-y-1 mb-6">
+                  <li>Scratch-resistant coating.</li>
+                  <li>Anti-reflective coating.</li>
+                  <li>UV protection.</li>
+                </ul>
+                <p className="mb-3">
+                  For added performance, you can personalize with:
+                </p>
+                <ul className="list-disc pl-6 space-y-1">
+                  <li>Blue light filters for digital strain.</li>
+                  <li>Water-repellent, smudge-resistant layers for easy cleaning.</li>
+                  <li>Transitions® or photochromic lenses for sun-sensitive lifestyles.</li>
+                </ul>
+              </section>
+            </div>
 
-          <section>
-            <h3 className="text-lg font-bold text-[#1F1F1F] mb-3">
-              6. Not Sure Where to Start?
-            </h3>
-            <p className="mb-4">
-              Our system automatically flags any frame that isn’t compatible
-              with the lens type you’ve selected. Standard progressive lenses
-              require larger frames to ensure proper zone alignment. If you
-              upload your prescription and virtually try on a few pairs, our
-              experts (or AI assistant) will help you narrow down the best
-              options.
+            <p className="text-[#333] text-base font-medium leading-relaxed">
+              Multifocal lenses include progressives, trifocal and bifocal — all designed to help you see clearly at multiple distances.
             </p>
-            <p className="mb-4">
-              But if you choose our <strong>Advanced</strong> or{" "}
-              <strong>Precision+ lenses</strong>, you’ll get more flexibility —
-              they’re designed to work across most frame styles, including
-              smaller and trend-forward shapes.
-            </p>
-            <p className="mb-2 font-bold text-[#1F1F1F]">
-              The right frames for progressives are:
-            </p>
-            <ul className="list-none space-y-1 text-[#525252]">
-              <li>✔ At least 30–36mm tall.</li>
-              <li>✔ Stable and comfortable.</li>
-              <li>✔ Not overly narrow or sharply angled.</li>
-              <li>✔ Matched to your lifestyle.</li>
-              <li>
-                ✔ Clearly marked “progressive-ready” on our product pages.
-              </li>
-            </ul>
-            <p className="mt-4 text-sm font-bold italic">
-              Multifocal lenses include progressives, trifocal and bifocal - all
-              designed to help you see clearly at multiple distances
-            </p>
-          </section>
-        </div>
+          </article>
+        </main>
       </div>
     </div>
   );
 };
 
-export default ChoosingRightFrame;
+export default PickRightLens;

@@ -2,9 +2,10 @@ import React, { useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import CheckoutStepper from "../components/CheckoutStepper";
 import Toast from "../components/Toast";
-import { getMyPrescriptions } from "../api/retailerApis";
-import { getProductFlow } from "../utils/productFlowStorage";
+import { getProductFlow, setProductFlow } from "../utils/productFlowStorage";
 import { LoginModal } from "../components/LoginModal";
+import PrescriptionHelpModal from "../components/PrescriptionHelpModal";
+import GetMyFitPopup from "../components/getMyFitPopup/GetMyFitPopup";
 import { X } from "lucide-react";
 
 const SelectPrescriptionSource: React.FC = () => {
@@ -15,55 +16,74 @@ const SelectPrescriptionSource: React.FC = () => {
   const navigate = useNavigate();
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [pdPreference, setPdPreference] = useState<"" | "know" | "generate">("");
+  const [pdType, setPdType] = useState<"single" | "dual">("single");
+  const [pdSingle, setPdSingle] = useState("");
+  const [pdRight, setPdRight] = useState("");
+  const [pdLeft, setPdLeft] = useState("");
+  const [helpModalOpen, setHelpModalOpen] = useState(false);
+  const [helpModalTab, setHelpModalTab] = useState("Pupillary Distance");
+  const [isGetMyFitOpen, setIsGetMyFitOpen] = useState(false);
+
+  const pdOptions = React.useMemo(
+    () => Array.from({ length: 45 }, (_, i) => (20 + i * 0.5).toFixed(2)),
+    []
+  );
+  const pdSingleOptions = React.useMemo(
+    () => Array.from({ length: 81 }, (_, i) => (40 + i * 0.5).toFixed(2)),
+    []
+  );
+
+  const openHelp = (tab: string) => {
+    setHelpModalTab(tab);
+    setHelpModalOpen(true);
+  };
+
+  const HelpButton = ({ onClick }: { onClick: () => void }) => (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      className="ml-2 w-5 h-5 rounded-full bg-[#E94D37] flex items-center justify-center hover:bg-[#bf3e2b] transition-colors flex-shrink-0"
+      aria-label="PD info"
+    >
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 5v3M6 4.5a.5.5 0 100-1 .5.5 0 000 1z" />
+      </svg>
+    </button>
+  );
 
   const handleNewPrescription = () => {
+    const isKnow = pdPreference === "know";
+    const right = isKnow && pdType === "single" && pdSingle
+      ? (parseFloat(pdSingle) / 2).toFixed(2)
+      : isKnow && pdType === "dual"
+        ? pdRight
+        : undefined;
+    const left = isKnow && pdType === "single" && pdSingle
+      ? (parseFloat(pdSingle) / 2).toFixed(2)
+      : isKnow && pdType === "dual"
+        ? pdLeft
+        : undefined;
+    const pdPayload = {
+      pdPreference: pdPreference || undefined,
+      pdType: isKnow ? pdType : undefined,
+      pdSingle: isKnow && pdType === "single" ? pdSingle : undefined,
+      pdRight: right,
+      pdLeft: left,
+    };
+    if (id) setProductFlow(id, pdPayload);
     navigate(`/product/${id}/add-prescription`, {
       state: {
         ...state,
         prescriptionTier: state?.lensOption || state?.prescriptionTier,
+        ...pdPayload,
       }
     });
   };
 
-  const handleAccountPrescription = async () => {
-    if (!localStorage.getItem("token")) {
-      // Open login modal instead of navigating to /login page
-      setShowLoginModal(true);
-      return;
-    }
-
-    try {
-      // Check if user has any prescriptions
-      const response = await getMyPrescriptions();
-
-      if (response.data && response.data.success && response.data.data && response.data.data.length > 0) {
-        // User has prescriptions, navigate to prescription page
-        navigate(`/my-prescriptions`, {
-          state: {
-            ...state,
-            prescriptionTier: state?.lensOption || state?.prescriptionTier,
-            productId: id,
-            returnPath: `/product/${id}/select-prescription-source`,
-          },
-        });
-      } else {
-        // No prescriptions found, show toast
-        setToast({ message: "No prescription found", type: "warning" });
-      }
-    } catch (error) {
-      console.error("Error fetching prescriptions:", error);
-      setToast({ message: "No prescription found", type: "warning" });
-    }
-  };
-
-  const handleShareLater = () => {
-    navigate(`/product/${id}/select-lens`, {
-      state: {
-        ...state,
-        prescriptionMethod: "later",
-        prescriptionTier: state?.lensOption || state?.prescriptionTier,
-      },
-    });
+  const handleGenerateNewPd = () => {
+    if (id) setProductFlow(id, { pdPreference: "generate" });
+    setIsGetMyFitOpen(true);
   };
 
   return (
@@ -80,24 +100,36 @@ const SelectPrescriptionSource: React.FC = () => {
 
       <div className="max-w-[1000px] mx-auto mt-4 md:mt-6">
         {/* PAGE TITLE */}
-         <div className="text-center mb-8 relative md:mb-12">
+         <div className="mb-8 relative md:mb-12">
           {/* Desktop Title */}
-          <p className="hidden md:block text-xl md:text-2xl font-medium text-[#1F1F1F] uppercase tracking-[0.1em]">
-            SELECT AN OPTION
+          <div className="hidden md:flex items-center justify-center gap-2">
+            <p className="text-xl md:text-2xl font-medium text-[#1F1F1F] uppercase tracking-[0.1em]">
+              Select a Pupillary Distance (PD) Option
+            </p>
+            <HelpButton onClick={() => openHelp("Pupillary Distance")} />
+          </div>
+          <p className="hidden md:block text-base text-gray-600 mt-2 text-center max-w-[560px] mx-auto">
+            PD is the distance between the centres of your pupils (in mm). It helps us align your lenses correctly.
           </p>
 
           {/* Mobile Header */}
           <div className="md:hidden flex items-center justify-between border-b border-black pb-4 -mx-4 px-4 bg-[#F3F0E7]">
-            <p className="text-[18px] font-medium text-[#1F1F1F] uppercase tracking-[0.1em]">
-              SELECT AN OPTION
-            </p>
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <p className="text-[18px] font-medium text-[#1F1F1F] uppercase tracking-[0.1em] truncate">
+                Select a Pupillary Distance (PD) Option
+              </p>
+              <HelpButton onClick={() => openHelp("Pupillary Distance")} />
+            </div>
             <button
               onClick={() => navigate(-1)}
-              className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-black/5"
+              className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full hover:bg-black/5"
             >
               <X className="w-6 h-6" />
             </button>
           </div>
+          <p className="md:hidden text-sm text-gray-600 mt-3 px-0">
+            PD is the distance between the centres of your pupils (in mm). It helps us align your lenses correctly.
+          </p>
         </div>
 
         {/* CARD GRID */}
@@ -106,9 +138,10 @@ const SelectPrescriptionSource: React.FC = () => {
           {/* 🔹 TOP TWO CARDS */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
-            {/* NEW CUSTOMER CARD */}
+            {/* I know my PD value CARD */}
             <button
-              onClick={handleNewPrescription}
+              type="button"
+              onClick={() => setPdPreference("know")}
               className="
                 w-full                 /* widened card */
                 bg-[#F3F0E7]
@@ -129,17 +162,17 @@ const SelectPrescriptionSource: React.FC = () => {
               "
             >
               <h3 className="text-lg font-bold text-[#1F1F1F] mb-3">
-                New customer or new prescription?
+                I know my PD value
               </h3>
 
               <p className="text-base text-gray-700 leading-relaxed">
-                You will need your current prescription and pupillary distance (PD).
+                You can enter it when adding your prescription (from your prescription slip or a previous measurement).
               </p>
             </button>
 
-            {/* ACCOUNT PRESCRIPTIONS CARD */}
+            {/* Generate new PD with MFit CARD */}
             <button
-              onClick={handleAccountPrescription}
+              onClick={handleGenerateNewPd}
               className="
                 w-full                 /* widened card */
                 bg-[#F3F0E7]
@@ -160,48 +193,157 @@ const SelectPrescriptionSource: React.FC = () => {
               "
             >
               <h3 className="text-lg font-bold text-[#1F1F1F] mb-3">
-                Select from my account
+                Generate new PD value with MFit and autofill
               </h3>
 
               <p className="text-base text-gray-700 leading-relaxed">
-                Choose a saved prescription or select one from a previous order.
+                We&apos;ll guide you to measure your PD using your device camera in the next step.
               </p>
             </button>
           </div>
 
-          {/* 🔹 BOTTOM SINGLE CARD */}
-          <div className="flex justify-center">
-            <button
-              onClick={handleShareLater}
-              className="
-                w-full
-                md:w-[50%]             /* slightly wider on desktop */
-                bg-[#F3F0E7]
-                
-                border-[1.8px]
-                border-[#777]
-                rounded-3xl
-                p-4
-                hover:border-[#555]
-                hover:shadow-md
-                transition-all
-                duration-300
-                text-center
-                min-h-[150px]
-                flex-row md:flex-col
-                items-center
-                justify-center
-              "
-            >
-              <h3 className="text-lg font-bold text-[#1F1F1F] mb-3">
-                Share your prescription later
-              </h3>
+          {/* 🔹 BOTTOM CARD: PD form — same size/style as top two cards */}
+          {pdPreference === "know" && (
+            <div className="flex justify-center">
+              <div className="w-full md:w-1/2 bg-[#F3F0E7] border-[1.8px] border-[#777] rounded-[24px] p-4 min-h-[150px] flex flex-col justify-center">
+                <p className="text-xs font-bold text-[#1F1F1F] uppercase tracking-wide mb-2">Choose one:</p>
+                <div className="flex flex-wrap gap-3 mb-2">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="pdTypeCard"
+                      value="single"
+                      checked={pdType === "single"}
+                      onChange={() => setPdType("single")}
+                      className="w-3.5 h-3.5 text-[#014D40] focus:ring-[#014D40] border-gray-300"
+                    />
+                    <span className="text-xs font-medium text-[#1F1F1F]">Single PD (total distance)</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="pdTypeCard"
+                      value="dual"
+                      checked={pdType === "dual"}
+                      onChange={() => setPdType("dual")}
+                      className="w-3.5 h-3.5 text-[#014D40] focus:ring-[#014D40] border-gray-300"
+                    />
+                    <span className="text-xs font-medium text-[#1F1F1F]">Both eyes PD</span>
+                  </label>
+                </div>
 
-              <p className="text-base text-gray-700 leading-relaxed">
-                Share your prescription with us after placing your order.
-              </p>
-            </button>
-          </div>
+                {pdType === "single" && (
+                  <div className="mb-2">
+                    <label htmlFor="select-pd-single-card" className="text-[10px] font-bold text-[#1F1F1F] uppercase tracking-wide block mb-1">
+                      PD (mm)
+                    </label>
+                    <div className="relative max-w-[140px]">
+                      <select
+                        id="select-pd-single-card"
+                        value={pdSingle}
+                        onChange={(e) => setPdSingle(e.target.value)}
+                        className="relative z-10 w-full bg-white border border-gray-200 rounded-lg px-3 py-2 pr-7 text-[#1F1F1F] text-sm font-medium focus:outline-none focus:border-[#232320] appearance-none cursor-pointer"
+                        style={{ minHeight: "36px" }}
+                      >
+                        <option value="">Select</option>
+                        {pdSingleOptions.map((val) => (
+                          <option key={val} value={val}>{val}</option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500 z-0">
+                        <svg className="fill-current h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                          <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {pdType === "dual" && (
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div className="flex flex-col gap-0.5">
+                      <label htmlFor="select-pd-right-card" className="text-[10px] font-bold text-[#1F1F1F] uppercase tracking-wide">
+                        Right Eye
+                      </label>
+                      <div className="relative">
+                        <select
+                          id="select-pd-right-card"
+                          value={pdRight}
+                          onChange={(e) => setPdRight(e.target.value)}
+                          className="relative z-10 w-full bg-white border border-gray-200 rounded-lg px-2 py-2 pr-6 text-[#1F1F1F] text-sm font-medium focus:outline-none focus:border-[#232320] appearance-none cursor-pointer"
+                          style={{ minHeight: "36px" }}
+                        >
+                          <option value="">Select</option>
+                          {pdOptions.map((val) => (
+                            <option key={val} value={val}>{val}</option>
+                          ))}
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500 z-0">
+                          <svg className="fill-current h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                            <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <label htmlFor="select-pd-left-card" className="text-[10px] font-bold text-[#1F1F1F] uppercase tracking-wide">
+                        Left Eye
+                      </label>
+                      <div className="relative">
+                        <select
+                          id="select-pd-left-card"
+                          value={pdLeft}
+                          onChange={(e) => setPdLeft(e.target.value)}
+                          className="relative z-10 w-full bg-white border border-gray-200 rounded-lg px-2 py-2 pr-6 text-[#1F1F1F] text-sm font-medium focus:outline-none focus:border-[#232320] appearance-none cursor-pointer"
+                          style={{ minHeight: "36px" }}
+                        >
+                          <option value="">Select</option>
+                          {pdOptions.map((val) => (
+                            <option key={val} value={val}>{val}</option>
+                          ))}
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500 z-0">
+                          <svg className="fill-current h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                            <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleNewPrescription}
+                  disabled={(pdType === "single" && !pdSingle) || (pdType === "dual" && (!pdRight || !pdLeft))}
+                  className="mt-1 w-full bg-[#232320] text-white py-2.5 rounded-full font-bold text-xs uppercase tracking-widest hover:bg-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Continue to add prescription
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* PD made simple - short instructions */}
+        <div className="w-full max-w-[900px] mx-auto mt-6 md:mt-8 p-4 md:p-5 bg-white/80 border border-[#777] rounded-[20px]">
+          <h4 className="text-[#1F1F1F] font-bold text-sm uppercase tracking-wide mb-3">
+            PD made simple
+          </h4>
+          <ul className="text-sm text-gray-700 space-y-2 list-none pl-0">
+            <li className="flex gap-2">
+              <span className="text-[#6B8E23] font-bold shrink-0">•</span>
+              <span>Some prescriptions show Distance PD and Near PD — use Distance PD for progressives.</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-[#6B8E23] font-bold shrink-0">•</span>
+              <span>If only one PD is listed, we automatically split it for each eye.</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-[#6B8E23] font-bold shrink-0">•</span>
+              <span>MFit measures both eyes precisely, tested on thousands.</span>
+            </li>
+          </ul>
         </div>
 
         {/* FOOTER NOTE */}
@@ -230,6 +372,17 @@ const SelectPrescriptionSource: React.FC = () => {
           navigate("/login", { state: { email } });
         }}
         onClose={() => setShowLoginModal(false)}
+      />
+
+      <PrescriptionHelpModal
+        open={helpModalOpen}
+        onClose={() => setHelpModalOpen(false)}
+        initialTab={helpModalTab}
+      />
+
+      <GetMyFitPopup
+        open={isGetMyFitOpen}
+        onClose={() => setIsGetMyFitOpen(false)}
       />
     </div>
   );

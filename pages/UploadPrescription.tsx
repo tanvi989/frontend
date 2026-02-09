@@ -1,10 +1,10 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import CheckoutStepper from "../components/CheckoutStepper";
 import { saveMyPrescription, uploadPrescriptionImage, addPrescription } from "../api/retailerApis";
 import PrescriptionHelpModal from "../components/PrescriptionHelpModal";
-import { getProductFlow } from "../utils/productFlowStorage";
+import { getProductFlow, setProductFlow } from "../utils/productFlowStorage";
 import { compressImage } from "../utils/imageUtils";
 
 const UploadPrescription: React.FC = () => {
@@ -18,15 +18,49 @@ const UploadPrescription: React.FC = () => {
 
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    // Previously uploaded prescription (from flow) - so we can show it when user returns to this page
+    const [existingPrescriptionUrl, setExistingPrescriptionUrl] = useState<string | null>(() => state?.prescriptionUploadedUrl ?? flow?.prescriptionUploadedUrl ?? null);
+    const [existingPrescriptionFileName, setExistingPrescriptionFileName] = useState<string | null>(() => state?.prescriptionUploadedFileName ?? flow?.prescriptionUploadedFileName ?? null);
     const [isDragging, setIsDragging] = useState(false);
     const [loading, setLoading] = useState(false);
 
-    // PD (Pupillary Distance) state
-    const [pdSingle, setPdSingle] = useState<string>("");
-    const [pdRight, setPdRight] = useState<string>("");
-    const [pdLeft, setPdLeft] = useState<string>("");
-    const [hasDualPD, setHasDualPD] = useState<boolean>(false);
+    const hasPrescriptionToShow = !!selectedFile || !!existingPrescriptionUrl;
+
+    // Normalize PD to 2 decimals so dropdown value matches options (same format as SelectPrescriptionSource)
+    const normalizePd = (v: string | number | undefined): string => {
+        if (v == null || v === "") return "";
+        const n = typeof v === "number" ? v : parseFloat(String(v));
+        if (Number.isNaN(n)) return "";
+        return n.toFixed(2);
+    };
+    // PD (Pupillary Distance) - auto-fill from select-prescription-source (flow or location state)
+    const [pdSingle, setPdSingle] = useState<string>(() => normalizePd(state?.pdSingle ?? flow?.pdSingle ?? ""));
+    const [pdRight, setPdRight] = useState<string>(() => normalizePd(state?.pdRight ?? flow?.pdRight ?? ""));
+    const [pdLeft, setPdLeft] = useState<string>(() => normalizePd(state?.pdLeft ?? flow?.pdLeft ?? ""));
+    const [hasDualPD, setHasDualPD] = useState<boolean>(() => {
+        const t = state?.pdType ?? flow?.pdType;
+        const r = state?.pdRight ?? flow?.pdRight;
+        const l = state?.pdLeft ?? flow?.pdLeft;
+        return t === "dual" || (!!r && !!l);
+    });
     const [helpModalOpen, setHelpModalOpen] = useState(false);
+
+    // Sync PD from select-prescription-source when state/flow has it (e.g. after navigation)
+    useEffect(() => {
+        const t = state?.pdType ?? flow?.pdType;
+        const single = state?.pdSingle ?? flow?.pdSingle;
+        const right = state?.pdRight ?? flow?.pdRight;
+        const left = state?.pdLeft ?? flow?.pdLeft;
+        if (t === "single" && single != null && single !== "") {
+            setPdSingle(normalizePd(single));
+            setHasDualPD(false);
+        }
+        if (t === "dual" || (right != null && right !== "" && left != null && left !== "")) {
+            if (right != null && right !== "") setPdRight(normalizePd(right));
+            if (left != null && left !== "") setPdLeft(normalizePd(left));
+            setHasDualPD(true);
+        }
+    }, [state?.pdType, state?.pdSingle, state?.pdRight, state?.pdLeft, flow?.pdType, flow?.pdSingle, flow?.pdRight, flow?.pdLeft]);
 
     const handleFileSelect = (file: File) => {
         // Validate file type
@@ -94,9 +128,11 @@ const UploadPrescription: React.FC = () => {
 
     const [searchParams] = useSearchParams();
     const cartItemId = searchParams.get("cart_id");
+    const productSku = state?.product?.skuid || state?.product?.id || id;
 
     const handleSaveAndContinue = async () => {
-        if (!selectedFile) {
+        const useExistingUpload = !selectedFile && existingPrescriptionUrl;
+        if (!selectedFile && !useExistingUpload) {
             fileInputRef.current?.click();
             return;
         }
@@ -124,69 +160,57 @@ const UploadPrescription: React.FC = () => {
                 localStorage.setItem('guest_id', guestId);
             }
 
-            // Step 1: Upload image to GCS
-            console.log("📤 Preparing prescription image...");
-            let fileToUpload = selectedFile;
-            
-            // Compress if it's an image
-            if (selectedFile.type.startsWith("image/")) {
-                try {
-                    console.log("🗜️ Compressing image...");
-                    fileToUpload = await compressImage(selectedFile, 0.6, 1600); // 60% quality, max 1600px width
-                    console.log(`✅ Compression complete: ${(selectedFile.size / 1024 / 1024).toFixed(2)}MB -> ${(fileToUpload.size / 1024 / 1024).toFixed(2)}MB`);
-                } catch (compError) {
-                    console.warn("⚠️ Compression failed, uploading original:", compError);
-                }
-            }
-
-            console.log("📤 Uploading prescription image to GCS...");
+            // Step 1: Use existing upload or upload image to GCS
             let imageUrl: string | undefined;
+            const fileNameForPayload = selectedFile?.name ?? existingPrescriptionFileName ?? "prescription";
 
-            try {
-                const uploadResponse = await uploadPrescriptionImage(
-                    fileToUpload,
-                    undefined,
-                    guestId
-                );
-
-                console.log("📥 Upload response:", uploadResponse);
-
-                if (uploadResponse.data && uploadResponse.data.success) {
-                    imageUrl = uploadResponse.data.url;
-                    console.log("✓ Image uploaded to GCS:", imageUrl);
-                } else {
-                    const errorMsg = uploadResponse.data?.detail || uploadResponse.data?.message || "Failed to upload image to GCS";
-                    console.error("❌ GCS upload failed:", errorMsg);
-                    throw new Error(errorMsg);
+            if (useExistingUpload && existingPrescriptionUrl) {
+                imageUrl = existingPrescriptionUrl;
+                console.log("✓ Using previously uploaded prescription:", imageUrl);
+            } else if (selectedFile) {
+                console.log("📤 Preparing prescription image...");
+                let fileToUpload = selectedFile;
+                if (selectedFile.type.startsWith("image/")) {
+                    try {
+                        console.log("🗜️ Compressing image...");
+                        fileToUpload = await compressImage(selectedFile, 0.6, 1600);
+                        console.log(`✅ Compression complete`);
+                    } catch (compError) {
+                        console.warn("⚠️ Compression failed, uploading original:", compError);
+                    }
                 }
-            } catch (uploadError: any) {
-                console.error("❌ GCS upload error:", uploadError);
-
-                // Extract error message from various possible error formats
-                let errorMessage = "Failed to upload prescription image. Please try again.";
-
-                if (uploadError.response?.data?.detail) {
-                    // Handle both string and object detail
-                    const detail = uploadError.response.data.detail;
-                    errorMessage = typeof detail === 'string' ? detail : JSON.stringify(detail);
-                } else if (uploadError.response?.data?.message) {
-                    errorMessage = uploadError.response.data.message;
-                } else if (uploadError.message) {
-                    errorMessage = uploadError.message;
+                console.log("📤 Uploading prescription image to GCS...");
+                try {
+                    const uploadResponse = await uploadPrescriptionImage(
+                        fileToUpload,
+                        undefined,
+                        guestId
+                    );
+                    if (uploadResponse.data && uploadResponse.data.success) {
+                        imageUrl = uploadResponse.data.url;
+                        console.log("✓ Image uploaded to GCS:", imageUrl);
+                        if (id) setProductFlow(id, { prescriptionUploadedUrl: imageUrl, prescriptionUploadedFileName: selectedFile.name });
+                    } else {
+                        const errorMsg = uploadResponse.data?.detail || uploadResponse.data?.message || "Failed to upload image to GCS";
+                        throw new Error(errorMsg);
+                    }
+                } catch (uploadError: any) {
+                    console.error("❌ GCS upload error:", uploadError);
+                    let errorMessage = "Failed to upload prescription image. Please try again.";
+                    if (uploadError.response?.data?.detail) {
+                        const detail = uploadError.response.data.detail;
+                        errorMessage = typeof detail === 'string' ? detail : JSON.stringify(detail);
+                    } else if (uploadError.response?.data?.message) {
+                        errorMessage = uploadError.response.data.message;
+                    } else if (uploadError.message) {
+                        errorMessage = uploadError.message;
+                    }
+                    alert(errorMessage);
+                    setLoading(false);
+                    return;
                 }
-
-                console.error("📋 Error details:", {
-                    status: uploadError.response?.status,
-                    statusText: uploadError.response?.statusText,
-                    data: uploadError.response?.data
-                });
-
-                alert(errorMessage);
-                setLoading(false);
-                return;
             }
 
-            // CRITICAL: Validate imageUrl before saving
             if (!imageUrl || imageUrl === 'undefined' || imageUrl.trim() === '') {
                 console.error("❌ CRITICAL ERROR: imageUrl is invalid!", imageUrl);
                 alert("Failed to upload image to cloud storage. Please try again.");
@@ -211,7 +235,7 @@ const UploadPrescription: React.FC = () => {
                 createdAt: new Date().toISOString(),
                 associatedProduct: {
                     cartId: cartItemId,
-                    productSku: id,
+                    productSku: productSku ?? undefined,
                     productName: state?.product?.name || "Product",
                     uniqueId: uniqueId
                 },
@@ -223,9 +247,9 @@ const UploadPrescription: React.FC = () => {
                     pdSingle: hasDualPD ? null : pdSingle,
                     pdRight: hasDualPD ? pdRight : null,
                     pdLeft: hasDualPD ? pdLeft : null,
-                    fileName: selectedFile.name,
-                    fileSize: selectedFile.size,
-                    fileType: selectedFile.type
+                    fileName: fileNameForPayload,
+                    fileSize: selectedFile?.size ?? 0,
+                    fileType: selectedFile?.type ?? ""
                 },
                 additionalInfo: "Uploaded via Prescription Upload Page"
             };
@@ -272,7 +296,7 @@ const UploadPrescription: React.FC = () => {
                                     "upload",
                                     {
                                         ...pdData,
-                                        fileName: selectedFile.name,
+                                        fileName: fileNameForPayload,
                                         associatedProduct: prescriptionPayload.associatedProduct
                                     },
                                     "Uploaded Prescription",
@@ -286,7 +310,7 @@ const UploadPrescription: React.FC = () => {
                                     "upload",
                                     {
                                         ...pdData,
-                                        fileName: selectedFile.name,
+                                        fileName: fileNameForPayload,
                                         associatedProduct: prescriptionPayload.associatedProduct
                                     },
                                     "Uploaded Prescription",
@@ -302,7 +326,7 @@ const UploadPrescription: React.FC = () => {
                                 "upload",
                                 {
                                     ...pdData,
-                                    fileName: selectedFile.name,
+                                    fileName: fileNameForPayload,
                                     associatedProduct: prescriptionPayload.associatedProduct
                                 },
                                 "Uploaded Prescription",
@@ -317,7 +341,7 @@ const UploadPrescription: React.FC = () => {
                             "upload",
                             {
                                 ...pdData,
-                                fileName: selectedFile.name,
+                                fileName: fileNameForPayload,
                                 associatedProduct: prescriptionPayload.associatedProduct
                             },
                             "Uploaded Prescription",
@@ -429,6 +453,9 @@ const UploadPrescription: React.FC = () => {
     const handleRemoveFile = () => {
         setSelectedFile(null);
         setPreviewUrl(null);
+        setExistingPrescriptionUrl(null);
+        setExistingPrescriptionFileName(null);
+        if (id) setProductFlow(id, { prescriptionUploadedUrl: undefined, prescriptionUploadedFileName: undefined });
         if (fileInputRef.current) {
             fileInputRef.current.value = "";
         }
@@ -468,7 +495,7 @@ const UploadPrescription: React.FC = () => {
                 <div className="max-w-[700px] mx-auto">
                     {/* Upload Area */}
                     <div
-                        className={`transition-all duration-300 ${selectedFile
+                        className={`transition-all duration-300 ${hasPrescriptionToShow
                             ? "p-12 rounded-2xl" // No border or background during preview
                             : isDragging
                                 ? "p-12 border-2 border-dashed border-[#184545] bg-[#184545]/5 rounded-2xl"
@@ -478,14 +505,14 @@ const UploadPrescription: React.FC = () => {
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
                     >
-                        {selectedFile ? (
+                        {hasPrescriptionToShow ? (
 
-                            // File Selected Preview
+                            // File Selected or Previously Uploaded Preview
                             <div className="text-center">
-                                {previewUrl ? (
+                                {(previewUrl || existingPrescriptionUrl) ? (
                                     <div className="mb-6">
                                         <img
-                                            src={previewUrl}
+                                            src={previewUrl || existingPrescriptionUrl || ""}
                                             alt="Prescription preview"
                                             className="max-w-full max-h-[500px] mx-auto rounded-lg shadow-sm"
                                         />
@@ -513,11 +540,16 @@ const UploadPrescription: React.FC = () => {
                                     </div>
                                 )}
                                 <p className="text-base font-semibold text-[#1F1F1F] mb-2">
-                                    {selectedFile.name}
+                                    {selectedFile?.name ?? existingPrescriptionFileName ?? "Prescription"}
                                 </p>
-                                <p className="text-sm text-gray-600 mb-4">
-                                    {(selectedFile.size / 1024).toFixed(2)} KB
-                                </p>
+                                {selectedFile && (
+                                    <p className="text-sm text-gray-600 mb-4">
+                                        {(selectedFile.size / 1024).toFixed(2)} KB
+                                    </p>
+                                )}
+                                {existingPrescriptionUrl && !selectedFile && (
+                                    <p className="text-sm text-gray-500 mb-4">Previously uploaded</p>
+                                )}
                                 <button
                                     onClick={handleRemoveFile}
                                     className="text-sm text-red-600 hover:text-red-700 font-medium underline"
@@ -600,8 +632,8 @@ const UploadPrescription: React.FC = () => {
                         className="hidden"
                     />
 
-                    {/* PD Section - Only show when file is selected */}
-                    {selectedFile && (
+                    {/* PD Section - show when file selected or previously uploaded */}
+                    {hasPrescriptionToShow && (
                         <div className="mt-8">
                             <div className="flex items-center mb-4">
                                 <h3 className="text-[#1F1F1F] font-bold text-base">
@@ -638,7 +670,7 @@ const UploadPrescription: React.FC = () => {
                                             className="w-full bg-gray-100 border border-gray-200 rounded-lg px-4 py-3 pr-8 text-[#1F1F1F] font-medium focus:outline-none focus:border-[#232320] transition-colors appearance-none cursor-pointer"
                                         >
                                             <option value="">Select PD</option>
-                                            {Array.from({ length: 45 }, (_, i) => 40 + i).map((val) => (
+                                            {Array.from({ length: 81 }, (_, i) => (40 + i * 0.5).toFixed(2)).map((val) => (
                                                 <option key={val} value={val}>
                                                     {val}
                                                 </option>
@@ -664,16 +696,17 @@ const UploadPrescription: React.FC = () => {
                                                 <select
                                                     value={pdRight}
                                                     onChange={(e) => setPdRight(e.target.value)}
-                                                    className="w-full bg-gray-100 border border-gray-200 rounded-lg px-4 py-3 pr-8 text-[#1F1F1F] font-medium focus:outline-none focus:border-[#232320] transition-colors appearance-none cursor-pointer"
+                                                    className="relative z-10 w-full bg-gray-100 border border-gray-200 rounded-lg px-4 py-3 pr-8 text-[#1F1F1F] font-medium focus:outline-none focus:border-[#232320] transition-colors appearance-none cursor-pointer"
+                                                    style={{ minHeight: "44px" }}
                                                 >
-                                                    <option value="">Right</option>
-                                                    {Array.from({ length: 45 }, (_, i) => 20 + i * 0.5).map((val) => (
-                                                        <option key={val} value={val.toFixed(1)}>
-                                                            {val.toFixed(1)}
+                                                    <option value="">Select</option>
+                                                    {Array.from({ length: 45 }, (_, i) => (20 + i * 0.5).toFixed(2)).map((val) => (
+                                                        <option key={val} value={val}>
+                                                            {val}
                                                         </option>
                                                     ))}
                                                 </select>
-                                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+                                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 z-0">
                                                     <svg
                                                         className="fill-current h-4 w-4"
                                                         xmlns="http://www.w3.org/2000/svg"
@@ -692,16 +725,17 @@ const UploadPrescription: React.FC = () => {
                                                 <select
                                                     value={pdLeft}
                                                     onChange={(e) => setPdLeft(e.target.value)}
-                                                    className="w-full bg-gray-100 border border-gray-200 rounded-lg px-4 py-3 pr-8 text-[#1F1F1F] font-medium focus:outline-none focus:border-[#232320] transition-colors appearance-none cursor-pointer"
+                                                    className="relative z-10 w-full bg-gray-100 border border-gray-200 rounded-lg px-4 py-3 pr-8 text-[#1F1F1F] font-medium focus:outline-none focus:border-[#232320] transition-colors appearance-none cursor-pointer"
+                                                    style={{ minHeight: "44px" }}
                                                 >
-                                                    <option value="">Left</option>
-                                                    {Array.from({ length: 45 }, (_, i) => 20 + i * 0.5).map((val) => (
-                                                        <option key={val} value={val.toFixed(1)}>
-                                                            {val.toFixed(1)}
+                                                    <option value="">Select</option>
+                                                    {Array.from({ length: 45 }, (_, i) => (20 + i * 0.5).toFixed(2)).map((val) => (
+                                                        <option key={val} value={val}>
+                                                            {val}
                                                         </option>
                                                     ))}
                                                 </select>
-                                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+                                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 z-0">
                                                     <svg
                                                         className="fill-current h-4 w-4"
                                                         xmlns="http://www.w3.org/2000/svg"
@@ -752,8 +786,8 @@ const UploadPrescription: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Save and Continue Button - Only show when file is selected but before PD section renders */}
-                    {!selectedFile && (
+                    {/* Browse button when no prescription shown */}
+                    {!hasPrescriptionToShow && (
                         <div className="mt-8 mb-24 text-center hidden md:block">
                             <button
                                 onClick={() => fileInputRef.current?.click()}

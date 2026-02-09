@@ -89,18 +89,18 @@ const RecentlyViewed: React.FC = () => {
                       <img
                         src={product.image || "/placeholder.png"}
                         alt={product.name}
-                        className="w-full h-full object-contain transition-opacity duration-300 opacity-100 group-hover:opacity-0"
+                        className="w-full h-full object-contain transition-opacity duration-300 opacity-100 group-hover:opacity-0 scale-110"
                       />
                       <img
                         src={(product.image || "/placeholder.png").replace("_1.jpg", "_2.jpg")}
                         alt={product.name}
-                        className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 opacity-0 group-hover:opacity-100"
+                        className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 opacity-0 group-hover:opacity-100 scale-110"
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = "none";
                         }}
                       />
                     </div>
-                    <div className="p-4">
+                    <div className="p-2">
                       <h3 className="font-bold text-[#1F1F1F] text-sm mb-1 truncate">
                         {product.naming_system || product.brand || "Multifolks"}
                       </h3>

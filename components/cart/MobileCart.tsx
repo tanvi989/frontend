@@ -11,7 +11,7 @@ import WhyMutlifolks from "../WhyMutlifolks";
 import CouponTermsDialog from "../product/CouponTermsDialog";
 import { Footer } from "../Footer";
 import ManualPrescriptionModal from "../ManualPrescriptionModal";
-import { deletePrescription, removePrescription, getMyPrescriptions } from "../../api/retailerApis";
+import { deletePrescription, removePrescription, getMyPrescriptions, getCartItemId } from "../../api/retailerApis";
 import { trackBeginCheckout } from "../../utils/analytics";
 
 interface MobileCartProps {
@@ -112,57 +112,54 @@ const MobileCart: React.FC<MobileCartProps> = ({
                     console.log(`🔍 [MobileCart getPrescriptionByCartId] Sample prescription structure:`, JSON.stringify(userPrescriptions[0], null, 2));
                 }
                 
-                // ✅ FIX: Check multiple possible locations for cartId
-                let prescription = userPrescriptions.find((p: any) => {
+                // Helper: get sortable date (latest first)
+                const getPrescriptionDate = (p: any) => {
+                    const raw = p?.created_at ?? p?.data?.created_at ?? p?.createdAt ?? p?.data?.createdAt ?? p?.updated_at ?? p?.data?.uploadedAt ?? 0;
+                    if (typeof raw === 'number') return raw;
+                    if (typeof raw === 'string') return new Date(raw).getTime() || 0;
+                    return 0;
+                };
+
+                // ✅ Match by cartId, then pick LATEST (most recently created/updated)
+                let matches = userPrescriptions.filter((p: any) => {
                     if (!p) return false;
-                    
-                    // Check nested data.associatedProduct.cartId
                     const dataCartId = p?.data?.associatedProduct?.cartId;
-                    // Check root level associatedProduct.cartId
                     const rootCartId = p?.associatedProduct?.cartId;
-                    // Also check if data itself has cartId
                     const directCartId = p?.data?.cartId || p?.cartId;
-                    // Check if associatedProduct is at root level with cartId
                     const rootAssociatedCartId = p?.associatedProduct?.cartId;
-                    
-                    // Also check deeply nested structures
                     const deepDataCartId = p?.data?.data?.associatedProduct?.cartId;
-                    
-                    const matches = (dataCartId && String(dataCartId) === String(cartId)) ||
-                                   (rootCartId && String(rootCartId) === String(cartId)) ||
-                                   (directCartId && String(directCartId) === String(cartId)) ||
-                                   (rootAssociatedCartId && String(rootAssociatedCartId) === String(cartId)) ||
-                                   (deepDataCartId && String(deepDataCartId) === String(cartId));
-                    
-                    if (matches) {
-                        console.log('✅ [MobileCart getPrescriptionByCartId] Found matching prescription:', {
-                            dataCartId,
-                            rootCartId,
-                            directCartId,
-                            rootAssociatedCartId,
-                            deepDataCartId,
-                            fullPrescription: p
-                        });
-                    }
-                    
-                    return matches;
+                    return (dataCartId && String(dataCartId) === String(cartId)) ||
+                           (rootCartId && String(rootCartId) === String(cartId)) ||
+                           (directCartId && String(directCartId) === String(cartId)) ||
+                           (rootAssociatedCartId && String(rootAssociatedCartId) === String(cartId)) ||
+                           (deepDataCartId && String(deepDataCartId) === String(cartId));
                 });
 
-                // Optional fallback (if cartId missing, try productSku)
-                if (!prescription && productSku) {
-                    console.log(`🔍 [MobileCart getPrescriptionByCartId] Trying productSku fallback: ${productSku}`);
-                    prescription = userPrescriptions.find((p: any) => {
+                // Fallback: match by productSku if no cartId match (normalize to string)
+                if (matches.length === 0 && productSku != null && productSku !== "") {
+                    const productSkuStr = String(productSku);
+                    console.log(`🔍 [MobileCart getPrescriptionByCartId] Trying productSku fallback: ${productSkuStr}`);
+                    matches = userPrescriptions.filter((p: any) => {
                         if (!p) return false;
                         const dataSku = p?.data?.associatedProduct?.productSku;
                         const rootSku = p?.associatedProduct?.productSku;
                         const deepDataSku = p?.data?.data?.associatedProduct?.productSku;
-                        return (dataSku && dataSku === productSku) ||
-                               (rootSku && rootSku === productSku) ||
-                               (deepDataSku && deepDataSku === productSku);
+                        return (dataSku && String(dataSku) === productSkuStr) ||
+                               (rootSku && String(rootSku) === productSkuStr) ||
+                               (deepDataSku && String(deepDataSku) === productSkuStr);
                     });
-                    if (prescription) {
-                        console.log('✅ [MobileCart getPrescriptionByCartId] Found prescription by productSku:', prescription);
-                    }
+                }
+
+                // Prefer camera (photo) over upload when both match, then LATEST by date
+                const prescription = matches.length > 0
+                    ? (() => {
+                        const photoMatches = matches.filter((p: any) => p && p.type === "photo");
+                        const pool = photoMatches.length > 0 ? photoMatches : matches;
+                        return pool.sort((a: any, b: any) => getPrescriptionDate(b) - getPrescriptionDate(a))[0];
+                    })()
+                    : null;
+                if (prescription) {
+                    console.log('✅ [MobileCart getPrescriptionByCartId] Using latest matching prescription (by date)');
                 }
 
                 if (prescription) {
@@ -173,20 +170,23 @@ const MobileCart: React.FC<MobileCartProps> = ({
                 console.log(`⚠️ [MobileCart getPrescriptionByCartId] No user prescriptions available (count: ${userPrescriptions?.length || 0})`);
             }
 
-            // Also check localStorage as fallback
+            // Also check localStorage as fallback (use latest by date if multiple)
             try {
                 const localPrescriptions = JSON.parse(localStorage.getItem('prescriptions') || '[]');
                 console.log(`🔍 [MobileCart getPrescriptionByCartId] Checking ${localPrescriptions.length} localStorage prescriptions...`);
-                const localPrescription = localPrescriptions.find((p: any) => {
+                const localMatches = localPrescriptions.filter((p: any) => {
                     const pCartId = p?.associatedProduct?.cartId;
-                    const matches = pCartId && String(pCartId) === String(cartId);
-                    if (matches) {
-                        console.log('✅ [MobileCart getPrescriptionByCartId] Found matching localStorage prescription:', p);
-                    }
-                    return matches;
+                    return pCartId && String(pCartId) === String(cartId);
                 });
-                if (localPrescription) {
-                    console.log('✅ [MobileCart getPrescriptionByCartId] Returning prescription from localStorage:', localPrescription);
+                if (localMatches.length > 0) {
+                    const getLocalDate = (p: any) => {
+                        const raw = p?.createdAt ?? p?.created_at ?? p?.prescriptionDetails?.createdAt ?? 0;
+                        if (typeof raw === 'number') return raw;
+                        if (typeof raw === 'string') return new Date(raw).getTime() || 0;
+                        return 0;
+                    };
+                    const localPrescription = localMatches.sort((a: any, b: any) => getLocalDate(b) - getLocalDate(a))[0];
+                    console.log('✅ [MobileCart getPrescriptionByCartId] Returning latest localStorage prescription');
                     return localPrescription;
                 }
             } catch (e) {
@@ -358,8 +358,8 @@ const MobileCart: React.FC<MobileCartProps> = ({
             </div>
 
             {/* Cart Items with Table Structure */}
-            {cartItems.map((item) => (
-                <div key={item.cart_id} className="border border-gray-200 rounded-lg mb-6 overflow-hidden">
+            {cartItems.map((item, index) => (
+                <div key={getCartItemId(item) ?? item.product_id ?? index} className="border border-gray-200 rounded-lg mb-6 overflow-hidden">
                     {/* Item Header with Product Info */}
                     <div className="p-4 bg-gray-50 border-b border-gray-200">
                         <div className="flex items-start gap-4">
@@ -403,12 +403,20 @@ const MobileCart: React.FC<MobileCartProps> = ({
                                 </div>
                             </div>
 
-                            {/* Remove Button */}
+                            {/* Remove from cart */}
                             <button
-                                onClick={() => handleDeleteItem(item.cart_id)}
-                                className="text-red-500 text-sm font-medium hover:text-red-700"
+                                type="button"
+                                onClick={() => {
+                                    const id = getCartItemId(item);
+                                    if (id != null) handleDeleteItem(id);
+                                }}
+                                className="flex items-center gap-1.5 text-red-600 text-sm font-semibold hover:text-red-700 hover:underline"
+                                aria-label="Remove from cart"
                             >
-                                Remove
+                                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                Remove from cart
                             </button>
                         </div>
                     </div>
@@ -511,12 +519,14 @@ const MobileCart: React.FC<MobileCartProps> = ({
                                                     Edit Prescription
                                                 </button>
                                             ) : (
-                                                // Show Upload and Manual options
+                                                // Show Upload, Manual, and Take Photo options
                                                 <div className="flex flex-col gap-2 pl-4 border-l-2 border-teal-200">
                                                     <button
                                                         onClick={() => {
-                                                            // Navigate to upload prescription page with cart_id
-                                                            navigate(`/upload-prescription?cart_id=${item.cart_id}`);
+                                                            const sku = item.product?.products?.skuid || item.product_id;
+                                                            navigate(`/upload-prescription?cart_id=${item.cart_id}`, {
+                                                                state: { cartId: item.cart_id, cart_id: item.cart_id, product: item.product?.products || (sku ? { skuid: sku } : undefined) }
+                                                            });
                                                         }}
                                                         className="text-teal-700 hover:text-teal-800 text-sm font-medium underline transition-colors self-start"
                                                         title="Upload a new prescription image to replace existing one"
@@ -525,13 +535,29 @@ const MobileCart: React.FC<MobileCartProps> = ({
                                                     </button>
                                                     <button
                                                         onClick={() => {
-                                                            // Navigate to manual prescription page with cart_id
-                                                            navigate(`/manual-prescription?cart_id=${item.cart_id}`);
+                                                            const sku = item.product?.products?.skuid || item.product_id;
+                                                            navigate(`/manual-prescription?cart_id=${item.cart_id}`, {
+                                                                state: { cartId: item.cart_id, cart_id: item.cart_id, product: item.product?.products || (sku ? { skuid: sku } : undefined) }
+                                                            });
                                                         }}
                                                         className="text-teal-700 hover:text-teal-800 text-sm font-medium underline transition-colors self-start"
                                                         title="Add manual prescription to replace existing one"
                                                     >
                                                         Manual Prescription
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            const sku = item.product?.products?.skuid || item.product_id;
+                                                            if (sku) {
+                                                                navigate(`/product/${sku}/add-prescription?cart_id=${item.cart_id}`, {
+                                                                    state: { cartId: item.cart_id, cart_id: item.cart_id, product: item.product?.products || { skuid: sku } }
+                                                                });
+                                                            }
+                                                        }}
+                                                        className="text-teal-700 hover:text-teal-800 text-sm font-medium underline transition-colors self-start"
+                                                        title="Take a photo of your prescription"
+                                                    >
+                                                        Take Photo
                                                     </button>
                                                     <button
                                                         onClick={() => toggleEditMode(item.cart_id)}
@@ -544,33 +570,46 @@ const MobileCart: React.FC<MobileCartProps> = ({
                                         </div>
                                     );
                                 } else {
-                                    // No prescription - show ONLY Add Prescription button
+                                    // No prescription - show Add Prescription and optional Take Photo
+                                    const sku = item.product?.products?.skuid || item.product_id;
                                     return (
-                                        <button
-                                            onClick={() => {
-                                                // Check for duplicate before adding prescription
-                                                const hasDuplicateWithPrescription = cartItems.some(cartItem => {
-                                                    if (cartItem.cart_id === item.cart_id) return false;
-                                                    const itemSku = cartItem.product?.products?.skuid || cartItem.product_id;
-                                                    const currentSku = item.product?.products?.skuid || item.product_id;
-                                                    const itemPrescription = getPrescriptionByCartId(cartItem.cart_id, itemSku, cartItem);
-                                                    
-                                                    return itemSku === currentSku && !!itemPrescription;
-                                                });
-
-                                                if (hasDuplicateWithPrescription) {
-                                                    setShowDuplicateWarning("This product already exists in your cart with a prescription. Please use that item or remove it first.");
-                                                    setTimeout(() => setShowDuplicateWarning(null), 5000);
-                                                    return;
-                                                }
-
-                                                // Redirect to manual prescription page with cart_id
-                                                navigate(`/manual-prescription?cart_id=${item.cart_id}`);
-                                            }}
-                                            className="bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded transition-colors w-full"
-                                        >
-                                            Add Prescription
-                                        </button>
+                                        <div className="flex flex-col gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    const hasDuplicateWithPrescription = cartItems.some(cartItem => {
+                                                        if (cartItem.cart_id === item.cart_id) return false;
+                                                        const itemSku = cartItem.product?.products?.skuid || cartItem.product_id;
+                                                        const currentSku = item.product?.products?.skuid || item.product_id;
+                                                        const itemPrescription = getPrescriptionByCartId(cartItem.cart_id, itemSku, cartItem);
+                                                        return itemSku === currentSku && !!itemPrescription;
+                                                    });
+                                                    if (hasDuplicateWithPrescription) {
+                                                        setShowDuplicateWarning("This product already exists in your cart with a prescription. Please use that item or remove it first.");
+                                                        setTimeout(() => setShowDuplicateWarning(null), 5000);
+                                                        return;
+                                                    }
+                                                    navigate(`/manual-prescription?cart_id=${item.cart_id}`, {
+                                                        state: { cartId: item.cart_id, cart_id: item.cart_id, product: item.product?.products || (sku ? { skuid: sku } : undefined) }
+                                                    });
+                                                }}
+                                                className="bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded transition-colors w-full"
+                                            >
+                                                Add Prescription
+                                            </button>
+                                            {sku && (
+                                                <button
+                                                    onClick={() => {
+                                                        navigate(`/product/${sku}/add-prescription?cart_id=${item.cart_id}`, {
+                                                            state: { cartId: item.cart_id, cart_id: item.cart_id, product: item.product?.products || { skuid: sku } }
+                                                        });
+                                                    }}
+                                                    className="text-teal-700 hover:text-teal-800 text-sm font-medium underline transition-colors self-start"
+                                                    title="Take a photo of your prescription"
+                                                >
+                                                    Or take photo
+                                                </button>
+                                            )}
+                                        </div>
                                     );
                                 }
                             })()}

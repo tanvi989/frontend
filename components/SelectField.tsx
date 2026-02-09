@@ -93,10 +93,11 @@ const SelectField: React.FC<SelectFieldProps> = ({
           {...props}
           id={props.id || props.name}
           onChange={handleChange}
-          className={`w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 pr-8 text-[#1F1F1F] font-medium focus:outline-none focus:border-[#232320] focus:ring-1 focus:ring-[#232320] transition-colors appearance-none cursor-pointer ${meta.touched && meta.error
+          className={`relative z-10 w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 pr-8 text-[#1F1F1F] font-medium focus:outline-none focus:border-[#232320] focus:ring-1 focus:ring-[#232320] transition-colors appearance-none cursor-pointer ${meta.touched && meta.error
               ? "border-nav-red focus:border-nav-red focus:ring-nav-red"
               : ""
             } ${className}`}
+          style={{ minHeight: "44px" }}
         >
           <option value="" disabled>
             {placeholder}
@@ -107,7 +108,7 @@ const SelectField: React.FC<SelectFieldProps> = ({
             </option>
           ))}
         </select>
-        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 z-0">
           <svg
             className="fill-current h-4 w-4"
             xmlns="http://www.w3.org/2000/svg"

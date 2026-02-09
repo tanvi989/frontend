@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { Share2 } from "lucide-react";
 import { GetMyFitModal } from "../components/GetMyFitModal";
 import { ChatWidget } from "../components/ChatWidget";
 import { getProductDetails, addRecentlyViewed } from "../api/retailerApis";
@@ -65,17 +66,21 @@ const AccordionItem = ({
   isOpen: boolean;
   onClick: () => void;
 }) => {
+  const ACCORDION_PANEL_MAX = 320;
   return (
-    <div className="border-b border-gray-200">
+    <div
+      className="border-b border-gray-200 overflow-hidden min-w-0 isolate"
+      style={{ contain: "layout paint" }}
+    >
       <button
-        className="w-full py-4 flex items-center justify-between text-left focus:outline-none group"
+        className="w-full py-4 flex items-center justify-between text-left focus:outline-none group min-w-0"
         onClick={onClick}
       >
-        <span className="text-sm font-bold text-[#1F1F1F] uppercase tracking-wider group-hover:text-[#D96C47] transition-colors">
+        <span className="text-sm font-bold text-[#1F1F1F] uppercase tracking-wider group-hover:text-[#D96C47] transition-colors truncate pr-2">
           {title}
         </span>
         <span
-          className={`transform transition-transform duration-200 text-gray-400 ${
+          className={`flex-shrink-0 transform transition-transform duration-200 text-gray-400 ${
             isOpen ? "rotate-180" : ""
           }`}
         >
@@ -95,12 +100,21 @@ const AccordionItem = ({
           </svg>
         </span>
       </button>
+      {/* Fixed-height scroll box when open — no transition on height to avoid layout break */}
       <div
-        className={`overflow-hidden transition-all duration-300 ease-in-out ${
-          isOpen ? "max-h-96 opacity-100 pb-4" : "max-h-0 opacity-0"
-        }`}
+        className={
+          isOpen
+            ? "overflow-hidden opacity-100 pb-4"
+            : "max-h-0 overflow-hidden opacity-0 pb-0"
+        }
+        style={isOpen ? { maxHeight: ACCORDION_PANEL_MAX } : undefined}
       >
-        <div className="text-sm text-gray-600 leading-relaxed">{children}</div>
+        <div
+          className="text-sm text-gray-600 leading-relaxed min-w-0 w-full overflow-y-auto overflow-x-hidden break-words pr-1"
+          style={{ maxHeight: isOpen ? ACCORDION_PANEL_MAX - 16 : undefined }}
+        >
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -114,7 +128,7 @@ const ProductPage: React.FC = () => {
   const { capturedData, setCapturedData } = useCaptureData();
   const [product, setProduct] = useState<Product | null>(null);
 
-  // Restore Get My Fit capture from session so VTO box shows same image as on /glasses
+  // Restore MFit capture from session so VTO box shows same image as on /glasses
   useEffect(() => {
     const session = getCaptureSession();
     if (!session) return;
@@ -133,15 +147,14 @@ const ProductPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isGetMyFitOpen, setIsGetMyFitOpen] = useState(false);
   const [userImage, setUserImage] = useState<string | null>(null);
-  const [openAccordion, setOpenAccordion] = useState<string | null>(
-    "DESCRIPTION"
-  );
+  const [openAccordion, setOpenAccordion] = useState<string | null>(null);
   const [activeImage, setActiveImage] = useState<string>("");
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isStickyVisible, setIsStickyVisible] = useState(false);
   const [isInitialButtonVisible, setIsInitialButtonVisible] = useState(true);
   const [showGetMyFitButton, setShowGetMyFitButton] = useState(true);
   const [vtoModalOpen, setVtoModalOpen] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
@@ -230,7 +243,7 @@ const ProductPage: React.FC = () => {
     setTouchEnd(null);
   };
 
-  // Scroll handler for sticky button visibility and Get My Fit button
+  // Scroll handler for sticky button visibility and MFit button
   useEffect(() => {
     let lastScrollY = window.scrollY;
     let ticking = false;
@@ -251,7 +264,7 @@ const ProductPage: React.FC = () => {
             setIsStickyVisible(false);
           }
 
-          // Check if Get My Fit button should be hidden based on 4th image position
+          // Check if MFit button should be hidden based on 4th image position
           if (fourthImageRef.current) {
             const fourthImageRect =
               fourthImageRef.current.getBoundingClientRect();
@@ -660,6 +673,43 @@ const ProductPage: React.FC = () => {
     });
   };
 
+  const handleSelectPdOption = () => {
+    navigate(`/product/${id}/select-prescription-source`, {
+      state: { product: state?.product || product },
+    });
+  };
+
+  const productShareUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/product/${id}`
+      : "";
+  const productTitle =
+    product && ((product as any).naming_system || product.skuid || product.name);
+
+  const handleCopyLink = async () => {
+    if (!productShareUrl) return;
+    try {
+      await navigator.clipboard.writeText(productShareUrl);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch (_) {}
+  };
+
+  const handleShare = async () => {
+    if (!productShareUrl) return;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: productTitle || "Product",
+          url: productShareUrl,
+          text: productTitle || "",
+        });
+      } catch (_) {}
+    } else {
+      handleCopyLink();
+    }
+  };
+
   const handleSlideClick = (index: number) => {
     setCurrentSlide(index);
     // Reset auto slide timer when manually clicking
@@ -765,14 +815,14 @@ const ProductPage: React.FC = () => {
             </div>
           )}
 
-          {/* Get My Fit Button for Mobile */}
+          {/* MFit Button for Mobile */}
           {/* <div className="absolute bottom-1 right-0  z-20">
             <button
               onClick={() => setIsGetMyFitOpen(true)}
               className="bg-white text-[#1F1F1F] px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center gap-2 border border-gray-100 group"
             >
               <span className="text-xs font-bold uppercase tracking-widest group-hover:text-[#D96C47] transition-colors">
-                Get My Fit
+                MFit
               </span>
               <svg width="36" height="14" viewBox="0 0 46 18" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path fillRule="evenodd" clipRule="evenodd" d="M46 2.09996C42.18 2.31792 39.0943 0.035123 34.8499 0.000709066C32.6244 -0.0222336 30.0893 0.505447 26.9576 2.47851C26.0399 1.60669 19.9601 1.60669 19.0424 2.47851C15.9107 0.505447 13.3756 -0.0222336 11.1501 0.000709066C6.90574 0.035123 3.80848 2.31792 0 2.09996V5.95433C1.53716 6.00021 1.8813 6.18375 2.01895 7.26206C3.98055 22.1518 20.7057 18.9284 20.809 6.47053C17.012 2.89148 28.9651 2.89148 25.1796 6.47053C25.2828 18.9284 42.008 22.1404 43.9696 7.26206C44.1187 6.17228 44.4514 6.00021 45.9885 5.95433V2.09996H46ZM1.35362 3.88949C1.5601 3.88949 1.73217 4.06156 1.73217 4.26804C1.73217 4.47452 1.5601 4.64659 1.35362 4.64659C1.14713 4.64659 0.975062 4.47452 0.975062 4.26804C0.975062 4.06156 1.14713 3.88949 1.35362 3.88949ZM44.6349 3.88949C44.4284 3.88949 44.2564 4.06156 44.2564 4.26804C44.2564 4.47452 44.4284 4.64659 44.6349 4.64659C44.8414 4.64659 45.0135 4.47452 45.0135 4.26804C45.0135 4.06156 44.8414 3.88949 44.6349 3.88949ZM34.6549 1.27403C38.8878 1.27403 42.3177 3.44211 42.3177 7.48001C42.3177 11.5179 38.8878 15.9458 34.6549 15.9458C32.2459 15.9458 29.9057 14.6611 28.5062 12.6765C27.4394 11.1738 26.992 9.22365 26.992 7.48001C26.992 3.44211 30.4219 1.27403 34.6549 1.27403ZM11.3337 1.27403C7.10075 1.27403 3.67082 3.44211 3.67082 7.48001C3.67082 11.5179 7.10075 15.9458 11.3337 15.9458C13.7426 15.9458 16.0828 14.6611 17.4823 12.6765C18.5491 11.1738 18.9965 9.22365 18.9965 7.48001C18.9965 3.44211 15.5666 1.27403 11.3337 1.27403Z" fill="#232320"></path>
@@ -804,16 +854,27 @@ const ProductPage: React.FC = () => {
                 : "opacity-0 max-h-0 overflow-hidden"
             }`}
           >
-            <button
-              onClick={handleBuyNow}
-              className="w-full bg-[#2D2D2D] text-white py-3 rounded-full font-[500] text-sm uppercase tracking-wider transition-all hover:bg-black"
-            >
-              SELECT MULTIFOCAL LENS & BUY NOW
-            </button>
+            <div className="flex items-stretch gap-2">
+              <button
+                onClick={handleBuyNow}
+                className="flex-1 min-w-0 bg-[#2D2D2D] text-white py-3 rounded-full font-[500] text-sm uppercase tracking-wider transition-all hover:bg-black"
+              >
+                SELECT MULTIFOCAL LENS & BUY NOW
+              </button>
+              <button
+                type="button"
+                onClick={handleShare}
+                className="flex-shrink-0 w-12 h-12 rounded-full border border-gray-200 bg-white text-gray-600 hover:text-[#1F1F1F] hover:bg-gray-50 flex items-center justify-center transition-colors"
+                title={linkCopied ? "Copied!" : "Share"}
+                aria-label={linkCopied ? "Copied!" : "Share"}
+              >
+                <Share2 className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           {/* Color Selection - Responsive Layout */}
-          <div className="mb-6 pb-4 border-b border-gray-200">
+          <div className="mb-2 pb-4 border-b border-gray-200">
             <div className="mb-3">
               <span className="text-xs tex-red-300 font-normal text-[#8B7355] uppercase tracking-wide block mb-2">
                 COLOR
@@ -874,8 +935,11 @@ const ProductPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Accordions */}
-          <div className="mb-8">
+          {/* Accordions: contained so toggling open never breaks layout or overflows */}
+          <div
+            className="mb-6 min-h-0 overflow-hidden flex-shrink-0"
+            style={{ contain: "layout paint" }}
+          >
             {/* <AccordionItem
               title="FEATURES"
               isOpen={openAccordion === "FEATURES"}
@@ -1051,11 +1115,29 @@ const ProductPage: React.FC = () => {
         }`}
       >
         <button
-          onClick={handleBuyNow}
-          className="w-full bg-[#232320] text-white py-3.5 rounded-full font-bold text-sm uppercase tracking-wider transition-all hover:bg-black mb-3 shadow-md"
+          type="button"
+          onClick={handleSelectPdOption}
+          className="w-full text-center text-sm font-medium text-[#4A90A4] hover:underline mb-2 py-1"
         >
-          SELECT MULTIFOCAL LENS & BUY NOW
+          Select PD option
         </button>
+        <div className="flex items-stretch gap-2 mb-3">
+          <button
+            onClick={handleBuyNow}
+            className="flex-1 min-w-0 bg-[#232320] text-white py-3.5 rounded-full font-bold text-sm uppercase tracking-wider transition-all hover:bg-black shadow-md"
+          >
+            SELECT MULTIFOCAL LENS & BUY NOW
+          </button>
+          <button
+            type="button"
+            onClick={handleShare}
+            className="flex-shrink-0 w-12 h-12 rounded-full border border-gray-200 bg-white text-gray-600 hover:text-[#1F1F1F] hover:bg-gray-50 flex items-center justify-center transition-colors"
+            title={linkCopied ? "Copied!" : "Share"}
+            aria-label={linkCopied ? "Copied!" : "Share"}
+          >
+            <Share2 className="w-5 h-5" />
+          </button>
+        </div>
         <p className="text-[11px] text-center font-bold text-[#4A90A4] tracking-wide">
           Buy Now Pay Later with Afterpay/Clearpay/Klarna
         </p>
@@ -1063,7 +1145,7 @@ const ProductPage: React.FC = () => {
 
       {/* Desktop View - Unchanged */}
       <div className="hidden lg:flex flex-col lg:flex-row h-full min-h-screen items-start">
-        {/* Left Column: Image Stack — main product images; small VTO preview when user has Get My Fit */}
+        {/* Left Column: Image Stack — main product images; small VTO preview when user has MFit */}
         <div className="lg:w-1/2 bg-white relative flex flex-col mt-24">
           <div className="w-full max-w-full flex flex-col gap-[1px] relative">
             {product.images && product.images.length > 0 ? (
@@ -1105,7 +1187,7 @@ const ProductPage: React.FC = () => {
           </div>
 
 
-          {/* Get My Fit Button */}
+          {/* MFit Button */}
           {/* {showGetMyFitButton && (
             <div className="w-full flex justify-end mt-8 pr-20 z-20 sticky bottom-40 pb-8">
               <button
@@ -1113,7 +1195,7 @@ const ProductPage: React.FC = () => {
                 className="bg-white text-[#1F1F1F] px-5 py-2 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center gap-3 border border-gray-100 group"
               >
                 <span className="text-xs font-bold uppercase tracking-widest group-hover:text-[#D96C47] transition-colors pt-3 pb-3">
-                  Get My Fit
+                  MFit
                 </span>
                 <svg width="46" height="18" viewBox="0 0 46 18" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path fillRule="evenodd" clipRule="evenodd" d="M46 2.09996C42.18 2.31792 39.0943 0.035123 34.8499 0.000709066C32.6244 -0.0222336 30.0893 0.505447 26.9576 2.47851C26.0399 1.60669 19.9601 1.60669 19.0424 2.47851C15.9107 0.505447 13.3756 -0.0222336 11.1501 0.000709066C6.90574 0.035123 3.80848 2.31792 0 2.09996V5.95433C1.53716 6.00021 1.8813 6.18375 2.01895 7.26206C3.98055 22.1518 20.7057 18.9284 20.809 6.47053C17.012 2.89148 28.9651 2.89148 25.1796 6.47053C25.2828 18.9284 42.008 22.1404 43.9696 7.26206C44.1187 6.17228 44.4514 6.00021 45.9885 5.95433V2.09996H46ZM1.35362 3.88949C1.5601 3.88949 1.73217 4.06156 1.73217 4.26804C1.73217 4.47452 1.5601 4.64659 1.35362 4.64659C1.14713 4.64659 0.975062 4.47452 0.975062 4.26804C0.975062 4.06156 1.14713 3.88949 1.35362 3.88949ZM44.6349 3.88949C44.4284 3.88949 44.2564 4.06156 44.2564 4.26804C44.2564 4.47452 44.4284 4.64659 44.6349 4.64659C44.8414 4.64659 45.0135 4.47452 45.0135 4.26804C45.0135 4.06156 44.8414 3.88949 44.6349 3.88949ZM34.6549 1.27403C38.8878 1.27403 42.3177 3.44211 42.3177 7.48001C42.3177 11.5179 38.8878 15.9458 34.6549 15.9458C32.2459 15.9458 29.9057 14.6611 28.5062 12.6765C27.4394 11.1738 26.992 9.22365 26.992 7.48001C26.992 3.44211 30.4219 1.27403 34.6549 1.27403ZM11.3337 1.27403C7.10075 1.27403 3.67082 3.44211 3.67082 7.48001C3.67082 11.5179 7.10075 15.9458 11.3337 15.9458C13.7426 15.9458 16.0828 14.6611 17.4823 12.6765C18.5491 11.1738 18.9965 9.22365 18.9965 7.48001C18.9965 3.44211 15.5666 1.27403 11.3337 1.27403Z" fill="#232320"></path>
@@ -1124,7 +1206,7 @@ const ProductPage: React.FC = () => {
         </div>
 
         {/* Right Column: Details (Sticky) */}
-        <div className="lg:w-1/2 bg-white p-8 pt-12 md:p-12 lg:p-16 flex flex-col lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto scrollbar-hide">
+        <div className="lg:w-1/2 bg-white p-8 pt-12 md:p-12 lg:p-16 flex flex-col min-h-0 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto lg:overflow-x-hidden scrollbar-hide">
           {/* Product Name and Price */}
           <div className="mb-8 pb-6 border-b border-gray-200 pt-20 bg-white sticky top-0 z-20">
             <div className="flex justify-between items-start">
@@ -1140,7 +1222,7 @@ const ProductPage: React.FC = () => {
           </div>
 
           {/* Color Selection */}
-          <div className="mb-8 pb-6 border-b border-gray-200">
+          <div className="mb-2 pb-4 border-b border-gray-200">
             <div className="flex items-end justify-between">
               <div>
                 <span className="text-xs font-normal text-[#8B7355] uppercase tracking-wide block mb-1">
@@ -1191,8 +1273,11 @@ const ProductPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Accordions */}
-          <div className="mb-8">
+          {/* Accordions: contained so toggling open never breaks layout or overflows */}
+          <div
+            className="mb-6 min-h-0 overflow-hidden flex-shrink-0"
+            style={{ contain: "layout paint" }}
+          >
             {/* <AccordionItem
               title="FEATURES"
               isOpen={openAccordion === "FEATURES"}
@@ -1361,11 +1446,29 @@ const ProductPage: React.FC = () => {
           {/* CTA Buttons */}
           <div className="sticky bottom-0 left-0 right-0 bg-white pt-4 pb-[6px] space-y-4  mb-[20px] z-30 mt-auto -mx-8 px-8 md:-mx-12 md:px-12 lg:-mx-16 lg:px-16">
             <button
-              onClick={handleBuyNow}
-              className="w-full bg-[#2D2D2D] text-white py-4 rounded-full font-bold text-sm uppercase tracking-wider transition-all hover:bg-black"
+              type="button"
+              onClick={handleSelectPdOption}
+              className="w-full text-center text-sm font-medium text-[#4A90A4] hover:underline py-1"
             >
-              SELECT MULTIFOCAL LENS &amp; BUY NOW
+              Select PD option
             </button>
+            <div className="flex items-stretch gap-2">
+              <button
+                onClick={handleBuyNow}
+                className="flex-1 min-w-0 bg-[#2D2D2D] text-white py-4 rounded-full font-bold text-sm uppercase tracking-wider transition-all hover:bg-black"
+              >
+                SELECT MULTIFOCAL LENS &amp; BUY NOW
+              </button>
+              <button
+                type="button"
+                onClick={handleShare}
+                className="flex-shrink-0 w-12 h-12 rounded-full border border-gray-200 bg-white text-gray-600 hover:text-[#1F1F1F] hover:bg-gray-50 flex items-center justify-center transition-colors"
+                title={linkCopied ? "Copied!" : "Share"}
+                aria-label={linkCopied ? "Copied!" : "Share"}
+              >
+                <Share2 className="w-5 h-5" />
+              </button>
+            </div>
             <p className="text-xs text-center font-medium text-[#4A90A4] hover:underline cursor-pointer transition-colors">
               Buy Now Pay Later with Afterpay/Clearpay/Klarna
             </p>

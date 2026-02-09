@@ -390,7 +390,7 @@ const AllProducts: React.FC = () => {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // If user already came through VTO / Get My Fit, default both GET MY FIT and Top matches M fit ON
+  // If user already came through VTO / Get My Fit, default both MFit and Top matches M fit ON
   useEffect(() => {
     const session = getCaptureSession();
     if (session?.measurements?.face_width) {
@@ -585,7 +585,7 @@ const AllProducts: React.FC = () => {
       setFitEnabled(true);
     } else {
       setFitEnabled(false);
-      setTopMfitEnabled(false); // Off when GET MY FIT is off
+      setTopMfitEnabled(false); // Off when MFit is off
     }
   };
 
@@ -861,7 +861,7 @@ const AllProducts: React.FC = () => {
 
         {/* Right Grid */}
         <div className="flex-1 relative">
-          {/* Mobile: Face/Frame width + Top matches M fit Toggle + GET MY FIT Toggle */}
+          {/* Mobile: Face/Frame width + Top matches M fit Toggle + MFit Toggle */}
           <div className="lg:hidden flex items-center justify-end sm:mb-4 mb-0 px-2 flex-wrap gap-2">
             {fitEnabled && captureSession?.measurements?.face_width != null && (
               <span className="text-xs text-gray-600">
@@ -872,26 +872,30 @@ const AllProducts: React.FC = () => {
               </span>
             )}
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-[#D96C47] uppercase tracking-wider">
-                Top matches M fit{fitEnabled ? ` (${topMfitProducts.length})` : ''}
-              </span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={topMfitEnabled}
-                onClick={handleTopMfitToggle}
-                disabled={!fitEnabled || !captureSession?.measurements?.face_width}
-                className={`relative w-12 h-7 rounded-full p-0.5 transition-colors duration-300 flex items-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${topMfitEnabled
-                  ? "bg-[#D96C47]"
-                  : "bg-gray-300"
-                  }`}
-              >
-                <span
-                  className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-sm transition-all duration-300 ease-out ${topMfitEnabled ? "left-[calc(100%-26px)]" : "left-0.5"}`}
-                />
-              </button>
+              {fitEnabled && (
+                <>
+                  <span className="text-xs font-bold text-[#D96C47] uppercase tracking-wider">
+                    Top matches M fit{` (${topMfitProducts.length})`}
+                  </span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={topMfitEnabled}
+                    onClick={handleTopMfitToggle}
+                    disabled={!captureSession?.measurements?.face_width}
+                    className={`relative w-12 h-7 rounded-full p-0.5 transition-colors duration-300 flex items-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${topMfitEnabled
+                      ? "bg-[#D96C47]"
+                      : "bg-gray-300"
+                      }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-sm transition-all duration-300 ease-out ${topMfitEnabled ? "left-[calc(100%-26px)]" : "left-0.5"}`}
+                    />
+                  </button>
+                </>
+              )}
               <span className="text-xs font-bold text-[#333] uppercase tracking-wider">
-                GET MY FIT
+                MFit
               </span>
               <button
                 type="button"
@@ -928,28 +932,32 @@ const AllProducts: React.FC = () => {
                     )}
                   </span>
                 )}
-                {/* Top matches M fit: label + toggle (frame width 110–145 for face 130) */}
-                <span className="text-sm font-bold text-[#D96C47] uppercase tracking-wider">
-                  Top matches M fit{fitEnabled ? ` (${topMfitProducts.length})` : ''}
-                </span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={topMfitEnabled}
-                  onClick={handleTopMfitToggle}
-                  disabled={!fitEnabled || !captureSession?.measurements?.face_width}
-                  className={`relative w-14 h-8 rounded-full p-1 transition-colors duration-300 flex items-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#D96C47] disabled:opacity-50 disabled:cursor-not-allowed ${topMfitEnabled
-                    ? "bg-[#D96C47]"
-                    : "bg-gray-300"
-                    }`}
-                >
-                  <span
-                    className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-sm transition-all duration-300 ease-out ${topMfitEnabled ? "left-[calc(100%-28px)]" : "left-1"}`}
-                  />
-                </button>
+                {/* Top matches M fit: only show after MFit is completed */}
+                {fitEnabled && (
+                  <>
+                    <span className="text-sm font-bold text-[#D96C47] uppercase tracking-wider">
+                      Top matches M fit ({topMfitProducts.length})
+                    </span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={topMfitEnabled}
+                      onClick={handleTopMfitToggle}
+                      disabled={!captureSession?.measurements?.face_width}
+                      className={`relative w-14 h-8 rounded-full p-1 transition-colors duration-300 flex items-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#D96C47] disabled:opacity-50 disabled:cursor-not-allowed ${topMfitEnabled
+                        ? "bg-[#D96C47]"
+                        : "bg-gray-300"
+                        }`}
+                    >
+                      <span
+                        className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-sm transition-all duration-300 ease-out ${topMfitEnabled ? "left-[calc(100%-28px)]" : "left-1"}`}
+                      />
+                    </button>
+                  </>
+                )}
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-bold text-[#333] uppercase tracking-wider">
-                    GET MY FIT
+                    MFit
                   </span>
                   <button
                     type="button"
@@ -1051,7 +1059,7 @@ const AllProducts: React.FC = () => {
               )} */}
           </div>
 
-          {/* When GET MY FIT on but Top matches off: show hint. When Top matches on, grid below shows only matches. */}
+          {/* When MFit on but Top matches off: show hint. When Top matches on, grid below shows only matches. */}
           {fitEnabled && !topMfitEnabled && (() => {
             const faceMm = captureSession?.measurements?.face_width;
             const minF = faceMm != null ? Math.round(faceMm + FRAME_WIDTH_MIN_OFFSET_MM) : 130;
@@ -1084,10 +1092,10 @@ const AllProducts: React.FC = () => {
                   }
                   className="cursor-pointer group bg-white border border-gray-200 hover:border-gray-300 hover:shadow-lg transition-all duration-300"
                 >
-                  <div className="relative p-1.5 bg-[#F7F7F7]">
+                  <div className="relative p-0 bg-[#F7F7F7]">
 
-                    {/* Image Container */}
-                    <div className="p-0 bg-[#F7F7F7] flex relative aspect-[1.4] rounded mb-1 mt-4 overflow-hidden ">
+                    {/* Image Container - passport aspect (35:45) when VTO so same size as capture; else 1.4 for product images */}
+                    <div className={`p-0 bg-[#F7F7F7] flex relative rounded overflow-hidden ${fitEnabled && captureSession ? 'aspect-[35/45]' : 'aspect-[1.4]'}`}>
                       {/* Color Dots - Use variants array from API */}
                       {(() => {
                         // Get colors from variants if available, otherwise use color_names
@@ -1135,12 +1143,12 @@ const AllProducts: React.FC = () => {
                           <img
                             src={product.images?.[0] || product.image}
                             alt={product.name}
-                            className="w-full h-full object-contain mix-blend-multiply transition-opacity duration-300 group-hover:opacity-0"
+                            className="w-full h-full object-contain mix-blend-multiply transition-opacity duration-300 group-hover:opacity-0 scale-110"
                           />
                           <img
                             src={product.images?.[1] || product.image}
                             alt={product.name}
-                            className="absolute inset-0 w-full h-full object-contain mix-blend-multiply transition-opacity duration-300 opacity-0 group-hover:opacity-100"
+                            className="absolute inset-0 w-full h-full object-contain mix-blend-multiply transition-opacity duration-300 opacity-0 group-hover:opacity-100 scale-110"
                             onError={(e) => {
                               (e.target as HTMLImageElement).style.display = "none";
                             }}
@@ -1150,7 +1158,7 @@ const AllProducts: React.FC = () => {
                     </div>
 
                     {/* Price and Naming System + Frame width when M fit is on */}
-                    <div className="flex justify-between items-end mt-2 px-2">
+                    <div className="flex justify-between items-end mt-1 px-2">
                       <span className="text-xs md:text-lg font-bold text-[#1F1F1F] uppercase tracking-wider">
                         {product.naming_system}
                       </span>

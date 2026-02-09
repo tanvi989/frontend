@@ -139,4 +139,8 @@ export interface CapturedData {
   faceShape: string;
   apiResponse?: ApiLandmarksResponse; // Full API response
   timestamp: number;
+  /** User's VTO frame adjustments (position/size/rotation) so /glasses can show exact same fit when swapping frames. */
+  frameAdjustments?: FrameOffsets;
+  /** When processedImageDataUrl is the cropped VTO view, this rect maps landmarks (0-1 in full image) to cropped image. */
+  cropRect?: { fullWidth: number; fullHeight: number; sx: number; sy: number; sw: number; sh: number };
 }

@@ -180,6 +180,29 @@ const CheckoutPreview: React.FC = () => {
                                     </div>
                                 </div>
 
+                                {/* Pupillary Distance (PD) - saved from select-prescription-source */}
+                                {(() => {
+                                    const pd = (latestItem as any)?.product_details;
+                                    const pdSource = pd?.pd_source;
+                                    const pdR = pd?.pd_right_mm;
+                                    const pdL = pd?.pd_left_mm;
+                                    const pdSingle = pd?.pd_single_mm;
+                                    if (!pdSource && !pdR && !pdL && !pdSingle) return null;
+                                    const pdLabel = "Pupillary Distance (PD)";
+                                    const pdValue = pdSingle
+                                        ? `${pdSingle} mm total`
+                                        : (pdR || pdL) ? `Right ${pdR || "—"} mm / Left ${pdL || "—"} mm` : null;
+                                    const display = pdValue ? `${pdSource || "PD"} — ${pdValue}` : (pdSource || "PD");
+                                    return (
+                                        <div className="flex items-start justify-between">
+                                            <div className="flex-1">
+                                                <div className="text-xs font-semibold text-[#1F1F1F] mb-0.5">{pdLabel}</div>
+                                                <div className="text-xs text-[#E94D37] font-medium">{display}</div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
                                 {/* Add Ons */}
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1">

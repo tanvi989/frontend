@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCaptureData } from '@/contexts/CaptureContext';
 import { detectGlasses, removeGlasses, detectLandmarks } from '@/services/glassesApi';
+import { cropToPassportStyle } from '@/utils/passportCrop';
 import { MeasurementsTab } from '@/components/try-on/MeasurementsTab';
 import { FramesTab } from '@/components/try-on/FramesTab';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -176,17 +177,23 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
     setProcessingStep('Analyzing...');
     try {
       const measureResult = await detectLandmarks(processedUrl);
-      if (!measureResult.success) throw new Error('Fail');
+      if (!measureResult.success || !measureResult.landmarks?.mm) throw new Error('Fail');
+
+      setProcessingStep('Preparing photo...');
+      const passport = await cropToPassportStyle(processedUrl, landmarks);
+      const finalImage = passport?.croppedDataUrl ?? processedUrl;
+      const cropRect = passport?.cropRect;
 
       setCapturedData({
         imageDataUrl: originalUrl,
-        processedImageDataUrl: processedUrl,
+        processedImageDataUrl: finalImage,
         glassesDetected,
-        landmarks: landmarks,
+        landmarks,
         measurements: measureResult.landmarks.mm,
         faceShape: measureResult.landmarks.face_shape,
         apiResponse: measureResult,
         timestamp: Date.now(),
+        ...(cropRect ? { cropRect } : {}),
       });
       setIsProcessing(false);
       setCurrentStep('4');

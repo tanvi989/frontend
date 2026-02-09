@@ -239,6 +239,11 @@ export const addToCart = (products: any, flag: any, prescription?: any, options?
     lensPackage?: string;
     coatingTitle?: string;
     selectedColor?: string;
+    pdPreference?: string;
+    pdType?: string;
+    pdSingle?: string;
+    pdRight?: string;
+    pdLeft?: string;
 }) => {
     // Always send to Backend (Guest ID handled by axios interceptor)
     const uniqueSku = `${products.skuid || products.id}_${Date.now()}`; // Generate unique SKU to force new item
@@ -254,14 +259,23 @@ export const addToCart = (products: any, flag: any, prescription?: any, options?
         image: products.image,
         price: totalPrice,
         quantity: 1,
-        // Send product details for fallback in case join fails
+        // Send product details for fallback in case join fails (incl. PD for final details)
         product_details: {
             name: products.name || products.product_name,
             price: framePrice,
             image: products.image,
             frame_color: products.colors && products.colors.length > 0 ? (typeof products.colors[0] === 'string' ? products.colors[0] : products.colors[0].frameColor) : (options?.selectedColor || 'Black'),
             lens_type: "Single Vision",
-            original_sku: products.skuid || products.id
+            original_sku: products.skuid || products.id,
+            // Add PD block when we have preference OR when we have Dual/Single values (so Dual PD is never lost)
+            ...((options?.pdPreference || options?.pdType === "dual" || options?.pdSingle) && {
+                pd_source: options.pdPreference === "know" ? "I know my PD value" : (options.pdPreference === "generate" ? "Generated with MFit" : "I know my PD value"),
+                pd_preference: options.pdPreference || (options.pdType === "dual" || options.pdSingle ? "know" : undefined),
+                pd_type: options.pdType === "dual" ? "dual" : "single",
+                ...(options.pdRight != null && options.pdRight !== "" && { pd_right_mm: String(options.pdRight) }),
+                ...(options.pdLeft != null && options.pdLeft !== "" && { pd_left_mm: String(options.pdLeft) }),
+                ...(options.pdSingle != null && options.pdSingle !== "" && { pd_single_mm: String(options.pdSingle) }),
+            }),
         },
         product: {
             products: {
@@ -369,10 +383,11 @@ export const clearCart = () => {
         });
 };
 
-// REAL: Delete from Cart (API with localStorage fallback)
+// REAL: Delete from Cart (API with localStorage fallback). Works for both logged-in and guest (local fallback).
 export const deleteProductFromCart = (cart_id: any, skuid: any, from: any) => {
-    const id = cart_id != null ? Number(cart_id) : null;
-    if (id == null || Number.isNaN(id)) {
+    const raw = cart_id != null ? cart_id : null;
+    const id = raw != null && raw !== "" ? Number(raw) : NaN;
+    if (Number.isNaN(id)) {
         return Promise.resolve({ data: { status: false, message: "Invalid cart id" } });
     }
     return axios.delete(`/api/v1/cart/item/${id}`)
@@ -387,6 +402,16 @@ export const deleteProductFromCart = (cart_id: any, skuid: any, from: any) => {
             removeFromLocalCart(id);
             return Promise.resolve({ data: { status: true, message: "Removed (local)" } });
         });
+}
+
+/** Get stable cart item id for delete/update (backend may use cart_id, id, cart_item_id, _id) */
+export function getCartItemId(item: any): number | null {
+    if (item == null) return null;
+    const raw =
+        item.cart_id ?? item.id ?? item.cart_item_id ?? item._id;
+    if (raw == null || raw === "") return null;
+    const n = Number(raw);
+    return Number.isNaN(n) ? null : n;
 }
 
 // REAL: Update Cart Quantity (API with localStorage fallback)
@@ -421,17 +446,21 @@ export const syncLocalCartToBackend = async () => {
 
         console.log(`ðŸ“¦ Step 1: Fetching guest cart (${guestId})...`);
 
-        // Fetch guest cart WITHOUT token (to get guest items)
+        // Prefer backend merge (server merges guest cart into user cart in one call)
+        try {
+            const mergeRes = await axios.post('/api/v1/cart/merge-guest-cart', { guest_id: guestId });
+            const data = mergeRes?.data;
+            if (data?.success !== false) {
+                localStorage.removeItem('guest_id');
+                window.dispatchEvent(new Event('cart-updated'));
+                return;
+            }
+        } catch (_) {}
+        // Fallback: fetch guest cart without token and add items one by one
         const guestCartResponse = await axios.get('/api/v1/cart', {
-            headers: {
-                'X-Guest-ID': guestId
-            },
-            // Override axios interceptor to not send token
-            transformRequest: [(data, headers) => {
-                delete headers.Authorization;
-                return data;
-            }]
-        });
+            skipAuth: true,
+            guestId,
+        } as any);
 
         const guestCart = guestCartResponse.data?.cart || [];
         console.log(`ðŸ“¦ Found ${guestCart.length} items in guest cart`);
@@ -496,14 +525,9 @@ export const syncLocalCartToBackend = async () => {
         console.log('ðŸ“¦ Step 3: Clearing guest cart...');
         try {
             await axios.delete('/api/v1/cart/clear', {
-                headers: {
-                    'X-Guest-ID': guestId
-                },
-                transformRequest: [(data, headers) => {
-                    delete headers.Authorization;
-                    return data;
-                }]
-            });
+                skipAuth: true,
+                guestId,
+            } as any);
             console.log('âœ… Guest cart cleared');
         } catch (error: any) {
             console.warn('âš ï¸  Failed to clear guest cart:', error.message);
@@ -659,49 +683,185 @@ export const placeOrder = async (data: any) => {
         const cartResponse = await getCart({});
         let cartItems = cartResponse?.data?.cart || [];
 
-        // ENRICH WITH PRESCRIPTIONS: Safety measure to ensure prescriptions are included in order data
+        // ENRICH WITH PRESCRIPTIONS: Include API prescriptions (photo/manual) so order metadata has full prescription + image
         let prescriptionsForMetadata: any[] = [];
         try {
+            let apiPrescriptions: any[] = [];
+            try {
+                const token = localStorage.getItem('token');
+                const guestId = !token ? (localStorage.getItem('guest_id') || undefined) : undefined;
+                const apiRes = await getMyPrescriptions(guestId);
+                const d = apiRes?.data;
+                const raw = Array.isArray(d) ? d : d?.data ?? d?.prescriptions ?? (d && typeof d === 'object' && !Array.isArray(d) ? undefined : d);
+                apiPrescriptions = Array.isArray(raw) ? raw : (raw && typeof raw === 'object' && Array.isArray((raw as any).prescriptions) ? (raw as any).prescriptions : []);
+            } catch (_) {
+                // User may not be logged in or API may fail; continue with local fallbacks
+            }
+
             const savedPrescriptions = JSON.parse(localStorage.getItem('prescriptions') || '[]');
             const sessionPrescriptions = JSON.parse(sessionStorage.getItem('productPrescriptions') || '{}');
-            
+
+            const getPrescriptionDate = (p: any) => {
+                const raw = p?.created_at ?? p?.data?.created_at ?? p?.createdAt ?? p?.data?.uploadedAt ?? 0;
+                if (typeof raw === 'number') return raw;
+                if (typeof raw === 'string') return new Date(raw).getTime() || 0;
+                return 0;
+            };
+
             cartItems = cartItems.map((item: any) => {
-                // Check original item prescription
-                if (item.prescription && Object.keys(item.prescription).length > 0) {
+                const productId = item.product?.products?.skuid ?? item.product?.products?.id ?? item.product_id ?? item.product?.skuid;
+                const productSkuStr = productId != null && productId !== '' ? String(productId) : '';
+                const allSkuids: string[] = item.product?.products?.all_skuids ?? (productSkuStr ? [productSkuStr] : []);
+                const skuSet = new Set(allSkuids.map((s: string) => String(s)));
+                const pd = item.product_details || {};
+
+                const buildPdPrescription = () => {
+                    const pdRight = pd.pd_right_mm ?? pd.pd_right;
+                    const pdLeft = pd.pd_left_mm ?? pd.pd_left;
+                    const pdSingle = pd.pd_single_mm ?? pd.pd_single;
+                    const pdType = pd.pd_type ?? (pdRight && pdLeft ? "dual" : "single");
+                    if (pdType === "dual" && pdRight != null && pdLeft != null) {
+                        return { pdType: "Dual", pdRight: String(pdRight), pdLeft: String(pdLeft) };
+                    }
+                    if (pdSingle != null) {
+                        return { pdType: "Single", pdSingle: String(pdSingle) };
+                    }
+                    return null;
+                };
+
+                // Use cart item prescription only if it's a FULL prescription (photo/manual with image or data)
+                // Otherwise cart may only have PD from product_details and we need API to get photo image_url
+                const hasFullPrescription = item.prescription && Object.keys(item.prescription).length > 0 &&
+                    item.prescription.type && (item.prescription.image_url || (item.prescription.data && Object.keys(item.prescription.data || {}).length > 0));
+                if (hasFullPrescription) {
                     prescriptionsForMetadata.push({
                         cart_id: item.cart_id,
+                        product_id: productId,
                         product_name: item.name,
                         prescription: item.prescription
                     });
                     return item;
                 }
 
-                // 1. Try to match by cart_id in localStorage
+                // 1. Prefer API prescriptions (photo/manual) so order has type + image_url in DB
+                let apiMatches = apiPrescriptions.filter((p: any) => {
+                    if (!p) return false;
+                    const cid = p?.data?.associatedProduct?.cartId ?? p?.associatedProduct?.cartId;
+                    if (cid && String(cid) === String(item.cart_id)) return true;
+                    const sku = p?.data?.associatedProduct?.productSku ?? p?.associatedProduct?.productSku;
+                    if (sku != null && sku !== '') {
+                        const skuStr = String(sku);
+                        if (skuStr === productSkuStr) return true;
+                        if (skuSet.size > 0 && skuSet.has(skuStr)) return true;
+                    }
+                    // Single cart item: also use photo/manual prescriptions that have no productSku (so camera prescription is never dropped)
+                    if (cartItems.length === 1 && (p.type === "photo" || p.type === "manual") && (p.image_url || p.data?.image_url)) return true;
+                    return false;
+                });
+                if (apiMatches.length > 0) {
+                    // Prefer camera (photo) over upload when both match, then most recent by date
+                    const photoMatches = apiMatches.filter((p: any) => p && p.type === "photo");
+                    const pool = photoMatches.length > 0 ? photoMatches : apiMatches;
+                    const best = pool.sort((a: any, b: any) => getPrescriptionDate(b) - getPrescriptionDate(a))[0];
+                    const fullPrescription = {
+                        type: best.type,
+                        name: best.name,
+                        image_url: best.image_url ?? best.data?.image_url,
+                        data: best.data,
+                        created_at: best.created_at
+                    };
+                    prescriptionsForMetadata.push({
+                        cart_id: item.cart_id,
+                        product_id: productId,
+                        product_name: item.name,
+                        prescription: fullPrescription
+                    });
+                    return { ...item, prescription: fullPrescription };
+                }
+
+                // 1b. Single cart item + at least one photo/manual prescription: use latest (in case associatedProduct was missing)
+                if (apiMatches.length === 0 && cartItems.length === 1 && apiPrescriptions.length > 0) {
+                    const fullOnly = apiPrescriptions.filter((p: any) =>
+                        p && (p.type === "photo" || p.type === "manual") && (p.image_url || p.data?.image_url)
+                    );
+                    if (fullOnly.length > 0) {
+                        // Prefer camera (photo) over upload, then most recent
+                        const photoOnly = fullOnly.filter((p: any) => p.type === "photo");
+                        const pool = photoOnly.length > 0 ? photoOnly : fullOnly;
+                        const best = pool.sort((a: any, b: any) => getPrescriptionDate(b) - getPrescriptionDate(a))[0];
+                        const fullPrescription = {
+                            type: best.type,
+                            name: best.name,
+                            image_url: best.image_url ?? best.data?.image_url,
+                            data: best.data,
+                            created_at: best.created_at
+                        };
+                        prescriptionsForMetadata.push({
+                            cart_id: item.cart_id,
+                            product_id: productId,
+                            product_name: item.name,
+                            prescription: fullPrescription
+                        });
+                        return { ...item, prescription: fullPrescription };
+                    }
+                }
+
+                // 2. Match by cart_id in localStorage
                 let match = savedPrescriptions.find((p: any) => {
                     const pCartId = p?.associatedProduct?.cartId || p?.data?.associatedProduct?.cartId;
                     return pCartId && String(pCartId) === String(item.cart_id);
                 });
+                // 2b. Match by productSku in localStorage (e.g. photo saved before add-to-cart); include same-product variants (all_skuids)
+                if (!match && (productSkuStr || skuSet.size > 0)) {
+                    const sameSku = savedPrescriptions.filter((p: any) => {
+                        const pSku = p?.associatedProduct?.productSku ?? p?.data?.associatedProduct?.productSku;
+                        if (!pSku) return false;
+                        const ps = String(pSku);
+                        if (ps === productSkuStr) return true;
+                        if (skuSet.size > 0 && skuSet.has(ps)) return true;
+                        return false;
+                    });
+                    if (sameSku.length > 0) {
+                        const byDate = (a: any, b: any) => (new Date(b?.createdAt ?? b?.created_at ?? 0).getTime()) - (new Date(a?.createdAt ?? a?.created_at ?? 0).getTime());
+                        const photoFirst = sameSku.filter((p: any) => p && p.type === "photo");
+                        match = (photoFirst.length > 0 ? photoFirst : sameSku).sort(byDate)[0];
+                    }
+                }
 
-                // 2. Try to match by product skuid in sessionStorage if cart match fails
+                // 3. Match by product skuid in sessionStorage (try cart sku and any variant in all_skuids)
                 if (!match) {
-                    const skuid = item.product?.products?.skuid || item.product?.skuid;
-                    if (skuid && sessionPrescriptions[skuid]) {
-                        match = sessionPrescriptions[skuid];
+                    const idsToTry = productSkuStr ? [productSkuStr, ...allSkuids].filter((s, i, a) => a.indexOf(s) === i) : allSkuids;
+                    for (const sid of idsToTry) {
+                        if (sid && sessionPrescriptions[sid]) {
+                            match = sessionPrescriptions[sid];
+                            break;
+                        }
                     }
                 }
 
                 if (match) {
-                    console.log("✓ Found prescription match for cart item:", item.cart_id);
-                    const prescriptionData = match.prescriptionDetails || match.data || match;
+                    const prescriptionData = (match.type && (match.image_url || match.data?.image_url))
+                        ? { type: match.type, name: match.name, image_url: match.image_url ?? match.data?.image_url, data: match.data, created_at: match.created_at ?? match.createdAt }
+                        : (match.prescriptionDetails || match.data || match);
                     prescriptionsForMetadata.push({
                         cart_id: item.cart_id,
+                        product_id: productId,
                         product_name: item.name,
                         prescription: prescriptionData
                     });
-                    return {
-                        ...item,
-                        prescription: prescriptionData
-                    };
+                    return { ...item, prescription: prescriptionData };
+                }
+
+                // 4. Fallback: PD from product_details
+                const pdPrescription = buildPdPrescription();
+                if (pdPrescription) {
+                    prescriptionsForMetadata.push({
+                        cart_id: item.cart_id,
+                        product_id: productId,
+                        product_name: item.name,
+                        prescription: pdPrescription
+                    });
+                    return { ...item, prescription: pdPrescription };
                 }
                 return item;
             });
@@ -716,8 +876,8 @@ export const placeOrder = async (data: any) => {
         const shipping_address = profileData.shipping_address || "";
         const billing_address = profileData.billing_address || "";
 
-        // Prepare order data
-        const orderData = {
+        // Prepare order data. Send prescriptions in BOTH metadata and top-level so backend can persist full photo/manual (type, image_url, data).
+        const orderData: Record<string, any> = {
             cart_items: cartItems,
             payment_data: {
                 pay_mode: data.pay_mode == 100 || data.pay_mode == '100' ? 'Cash On Delivery' : 'Stripe / Online',
@@ -730,8 +890,10 @@ export const placeOrder = async (data: any) => {
             billing_address,
             metadata: {
                 customer_id: data.customer_id,
-                prescriptions: JSON.stringify(prescriptionsForMetadata) // Explicitly add to metadata root too
-            }
+                prescriptions: prescriptionsForMetadata
+            },
+            // Top-level prescriptions: backend MUST persist this as-is so camera/upload prescription image_url is stored in DB
+            prescriptions: prescriptionsForMetadata
         };
 
         const response = await axios.post('/api/v1/orders', orderData);
@@ -962,6 +1124,17 @@ export const createPaymentSession = (data: any) => {
     return axios.post('/api/v1/payment/create-session', data);
 };
 
+/** Update order with cart and totals (call after payment success to fix £0 order) */
+export const updateOrderWithCart = (orderId: string, payload: {
+    cart_items?: any[];
+    subtotal?: number;
+    discount_amount?: number;
+    shipping_cost?: number;
+    total_payable?: number;
+}) => {
+    return axios.patch(`/api/v1/orders/${encodeURIComponent(orderId)}`, payload);
+};
+
 // REAL: Apply Coupon (Hybrid)
 export const applyCoupon = (code: string) => {
     return axios.post('/api/v1/cart/coupon', { code });
@@ -991,8 +1164,10 @@ export const addRecentlyViewed = (product_id: string) => {
 };
 
 // --- MY PRESCRIPTIONS ---
-export const getMyPrescriptions = () => {
-    return axios.get('/api/v1/user/prescriptions');
+// Optional guestId: when user is not logged in, pass so backend can return guest prescriptions (query or X-Guest-ID)
+export const getMyPrescriptions = (guestId?: string | null) => {
+    const params = guestId ? { guest_id: guestId } : undefined;
+    return axios.get('/api/v1/user/prescriptions', params ? { params } : undefined);
 };
 
 // Upload prescription image to Google Cloud Storage

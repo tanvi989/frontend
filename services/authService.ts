@@ -26,30 +26,23 @@ export const authService = {
     countryCode: string = "44"
   ) => {
     const payload = {
-      first_name: firstName,
-      last_name: lastName,
-      email,
-      mobile,
-      password,
-      country_code: countryCode,
+      first_name: (firstName ?? "").trim(),
+      last_name: (lastName ?? "").trim(),
+      email: (email ?? "").trim() || undefined,
+      mobile: (mobile ?? "").trim(),
+      password: password ?? "",
+      country_code: countryCode ?? "44",
     };
 
-    const response = await axiosInstance.post(
-      "/api/v1/auth/simple-register",
-      payload,
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    const response = await axiosInstance.post("/api/v1/auth/simple-register", payload, {
+      headers: { "Content-Type": "application/json" },
+    });
 
-    if (response.data.success) {
-      // Return data for the component to handle storage
-      response.data.status = true;
+    const data = response.data;
+    if (data?.success) {
+      data.status = true;
     }
-
-    return response.data;
+    return data;
   },
 
   login: async (email: string, password: string) => {
@@ -207,6 +200,12 @@ export const authService = {
   // PIN Authentication
   requestPin: async (email: string) => {
     const response = await axiosInstance.post("/api/v1/auth/request-pin", { email });
+    return response.data;
+  },
+
+  // Request a new reset PIN (for forgot-password flow only; uses same endpoint as initial "Send Reset PIN")
+  requestResetPin: async (email: string) => {
+    const response = await axiosInstance.post("/api/v1/auth/forgot-password", { email });
     return response.data;
   },
 

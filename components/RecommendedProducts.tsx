@@ -26,9 +26,9 @@ const ProductCard = ({ product, onClick }: { product: RecommendedProduct; onClic
       onClick={onClick}
       className="cursor-pointer group bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow"
     >
-      <div className="relative p-4">
-        {/* Product Image Container */}
-        <div className="bg-[#f5f5f5] relative aspect-[1.4] mb-3 overflow-hidden group-hover:bg-[#ebebeb] transition-colors">
+      <div className="relative p-1">
+        {/* Product Image Container - minimal padding for larger product image */}
+        <div className="bg-[#f5f5f5] relative aspect-[1.4] mb-2 overflow-hidden group-hover:bg-[#ebebeb] transition-colors">
 
           {/* Color Dots - Use variants array from API */}
           {(() => {
@@ -75,18 +75,18 @@ const ProductCard = ({ product, onClick }: { product: RecommendedProduct; onClic
             );
           })()}
 
-          <div className="absolute inset-0 flex items-center justify-center p-8">
-            {/* Image 1 - Visible by default - Base image (images[0]) */}
+          <div className="absolute inset-0 flex items-center justify-center p-0">
+            {/* Image 1 - Visible by default - scale-110 for larger product */}
             <img
               src={product.images?.[0] || product.image}
               alt={product.name}
-              className="w-full h-full object-contain mix-blend-multiply transition-all duration-500 group-hover:opacity-0"
+              className="w-full h-full object-contain mix-blend-multiply transition-all duration-500 group-hover:opacity-0 scale-110"
             />
             {/* Image 2 - Hidden until hover - Shows images[1] */}
             <img
               src={product.images?.[1] || product.image}
               alt={`${product.name} hover`}
-              className="w-full h-full object-contain mix-blend-multiply absolute inset-0 transition-all duration-500 opacity-0 group-hover:opacity-100"
+              className="w-full h-full object-contain mix-blend-multiply absolute inset-0 transition-all duration-500 opacity-0 group-hover:opacity-100 scale-110"
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = "none";
               }}
@@ -95,7 +95,7 @@ const ProductCard = ({ product, onClick }: { product: RecommendedProduct; onClic
         </div>
 
         {/* Product Info - Naming System and Price */}
-        <div className="flex justify-between items-end px-1 mt-2">
+        <div className="flex justify-between items-end px-1 mt-1">
           <span className="text-sm font-bold text-[#1F1F1F] uppercase tracking-wider">
             {product.naming_system}
           </span>

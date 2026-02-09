@@ -11,23 +11,18 @@ const store = {
 const error = (message: string) => ({ type: 'ERROR', payload: message });
 const success = (message: string) => ({ type: 'SUCCESS', payload: message });
 
-// Use backend from Vite env or fallback to local backend (must be http:// or https://, no typo)
-export const API_BASE_URL = "https://finalbackend.multifolks.com/";
+// Backend URL: use env in dev/prod, else localhost:5000 so API requests go to backend (avoids proxy 405)
+export const API_BASE_URL = "http://localhost:5000";
 
-// Prefer Vite env if present (dev/prod), otherwise fallback to localhost:5000
 const env = (import.meta as any)?.env ?? {};
 let ENV_API_TARGET = (env.VITE_API_TARGET || env.VITE_API_URL || "").trim();
-// Fix malformed URL (e.g. "https://http//localhost:5000" -> use default)
 if (ENV_API_TARGET && (ENV_API_TARGET.includes("http//") || !/^https?:\/\//.test(ENV_API_TARGET))) {
   ENV_API_TARGET = "";
 }
-let RESOLVED_BASE_URL = ENV_API_TARGET ? (ENV_API_TARGET.replace(/\/+$/, "") + "/") : (API_BASE_URL + "/");
-// Final guard: never use a malformed URL (e.g. https://http//localhost:5000)
-if (RESOLVED_BASE_URL.includes("http//")) {
-  RESOLVED_BASE_URL = API_BASE_URL + "/";
-}
+const RESOLVED_BASE_URL = ENV_API_TARGET
+  ? (ENV_API_TARGET.replace(/\/+$/, "") + "/")
+  : (API_BASE_URL.replace(/\/+$/, "") + "/");
 
-// One-time log so you can confirm backend base URL in browser console
 console.log('[API] Base URL:', RESOLVED_BASE_URL);
 
 const axios = Axios.create({
@@ -48,7 +43,16 @@ function getCookie(name: string): string | null {
   return null;
 }
 
-axios.interceptors.request.use(function (config: InternalAxiosRequestConfig) {
+axios.interceptors.request.use(function (config: InternalAxiosRequestConfig & { skipAuth?: boolean }) {
+  // When skipAuth is true, we intentionally fetch as guest (e.g. merge guest cart before login).
+  if (config.skipAuth && config.headers) {
+    const guestId = (config as any).guestId || localStorage.getItem('guest_id');
+    if (guestId) {
+      config.headers['X-Guest-ID'] = guestId;
+      delete config.headers['Authorization'];
+    }
+    return config;
+  }
   const token = localStorage.getItem('token');
   if (token && config.headers) {
     config.headers['Authorization'] = `Bearer ${token}`;

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { validateEmail } from "../helpers/validateForms";
+import { getApiErrorMessage } from "../helpers/apiErrors";
 import { authService } from "../services/authService";
 import { syncLocalCartToBackend } from "../api/retailerApis";
 import axiosInstance from "../api/axiosConfig";
@@ -108,8 +109,9 @@ const Login: React.FC = () => {
       return extractErrorMessage(error[0]);
     }
 
-    // If it's an object, look for common error fields
+    // If it's an object, look for common error fields (incl. backend detail.msg)
     if (typeof error === "object") {
+      if (error.msg) return String(error.msg);
       if (error.message) return extractErrorMessage(error.message);
       if (error.error) return extractErrorMessage(error.error);
       if (error.detail) return extractErrorMessage(error.detail);
@@ -169,14 +171,7 @@ const Login: React.FC = () => {
     } catch (error: any) {
       console.error("Login error:", error);
 
-      let errorMessage = "Login failed. Please check your credentials.";
-
-      if (error?.response?.data) {
-        errorMessage = extractErrorMessage(error.response.data);
-      } else if (error?.message) {
-        errorMessage = error.message;
-      }
-
+      const errorMessage = getApiErrorMessage(error, "Login failed. Please check your credentials.");
       setMessage({
         type: "error",
         text: errorMessage,
@@ -216,19 +211,22 @@ const Login: React.FC = () => {
 
       console.log("Registration response:", response);
       if (response.status || response.success) {
-        // 1. Save Token
-        localStorage.setItem("token", response.data?.token || "mock-token-" + Date.now());
+        // 1. Save Token and email (backend returns { data: { token, id, ... } })
+        const token = response.data?.token || response.data?.data?.token || "mock-token-" + Date.now();
+        localStorage.setItem("token", token);
+        localStorage.setItem("email", email);
 
-        // 2. Save User Data explicitly for the Cart Icon
+        // 2. Save User Data for nav/cart
         localStorage.setItem("firstName", firstName);
         localStorage.setItem("lastName", lastName);
-        localStorage.setItem("customerID", response.data?.id || "MOCK_ID");
+        localStorage.setItem("customerID", response.data?.id || response.data?.data?.id || "MOCK_ID");
 
-        // 3. Dispatch auth change events so Cart.tsx updates immediately
+        // 3. Dispatch auth change so AuthContext, Navigation, Cart all update
         window.dispatchEvent(new Event("auth-change"));
         window.dispatchEvent(new Event("storage"));
 
         await syncLocalCartToBackend();
+        localStorage.removeItem("guest_id");
 
         setMessage({
           type: "success",
@@ -250,15 +248,7 @@ const Login: React.FC = () => {
       }
     } catch (error: any) {
       console.error("Registration error full object:", error);
-
-      let errorMessage = "Registration failed. Please try again.";
-
-      if (error?.response?.data) {
-        errorMessage = extractErrorMessage(error.response.data);
-      } else if (error?.message) {
-        errorMessage = error.message;
-      }
-
+      const errorMessage = getApiErrorMessage(error, "Registration failed. Please try again.");
       setMessage({
         type: "error",
         text: errorMessage,
@@ -401,14 +391,6 @@ const Login: React.FC = () => {
               {loading ? "Checking..." : "Next"}
             </button>
 
-            <div className="text-right -mt-2">
-              <Link
-                to="/forgot-password"
-                className="text-gray-500 font-medium text-xs hover:text-[#1F1F1F] transition-colors"
-              >
-                Forgot password?
-              </Link>
-            </div>
 
             {/* Divider */}
             <div className="relative my-6">
@@ -551,7 +533,7 @@ const Login: React.FC = () => {
                     setMessage({ type: "success", text: `PIN has been sent to ${email}` });
                   } catch (err: any) {
                     console.error(err);
-                    setMessage({ type: "error", text: "Failed to send PIN" });
+                    setMessage({ type: "error", text: getApiErrorMessage(err, "Failed to send PIN") });
                   }
                 }}
                 className="text-gray-500 font-medium text-xs hover:text-[#1F1F1F] transition-colors underline"
@@ -578,7 +560,7 @@ const Login: React.FC = () => {
                     setMessage({ type: "success", text: `PIN has been sent to ${email}` });
                   } catch (err: any) {
                     console.error(err);
-                    setMessage({ type: "error", text: "Failed to send PIN" });
+                    setMessage({ type: "error", text: getApiErrorMessage(err, "Failed to send PIN") });
                   }
                 }}
                 className="text-[#1F1F1F] font-bold text-sm underline hover:opacity-80"
@@ -602,12 +584,6 @@ const Login: React.FC = () => {
                 {loginMethod === "password" ? "Login with PIN" : "Login with Password"}
               </button>
 
-              <Link
-                to="/forgot-password"
-                className="text-[#1F1F1F] font-bold text-sm underline hover:opacity-80"
-              >
-                Forgot Password?
-              </Link>
             </div>
           </form>
         )}

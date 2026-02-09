@@ -165,12 +165,29 @@ In `order_service.create_order`, ensure whatever builds the order document (Mong
 
 ---
 
+## 9. Persist cart and totals on order (fix £0 order details after payment)
+
+**Problem:** After paying with Stripe, the order is saved with `cart: []`, `subtotal: 0`, `total_payable: 0`, so Order Details and admin show £0.00 and no line items.
+
+**Cause:** The frontend now sends `cart_items`, `subtotal`, `discount_amount`, `shipping_cost`, and `total_payable` in the create-session request; the backend must accept and persist them when creating the order.
+
+**Backend changes:**
+
+1. **Extend the create-session request body** to accept: `cart_items` (list), `subtotal`, `discount_amount`, `shipping_cost`, `total_payable`.
+2. **When creating the order** in the long `create_payment_session` handler, set on the order document: `cart` = request `cart_items`, `subtotal`, `discount_amount`, `shipping_cost`, `order_total` / `total_payable` from request (or from `amount`).
+3. **Ensure only the long handler runs** (remove the duplicate short `create_payment_session` per section 3) so the order is created with this data.
+
+After this, Order Details and admin will show the correct line items and amounts.
+
+---
+
 ## Summary
 
 | Issue | Action |
 |-------|--------|
 | Frontend sends `prescriptions` but backend didn't accept it | Add `prescriptions` to `CreatePaymentSessionRequest` and merge into `metadata` before `create_order`. |
 | Second create-session overwrote the first (order never created) | Remove the short duplicate `create_payment_session`; keep the long one that creates order + Stripe session. |
+| Order shows £0 and empty cart after payment | Accept and persist `cart_items`, `subtotal`, `discount_amount`, `shipping_cost`, `total_payable` when creating order (section 9). |
 | Duplicate GET/POST prescriptions (wrong field name) | Remove the second pair that uses `saved_prescriptions`; keep the one that uses `prescriptions` and `verify_token`. |
 | Typo | Change `@@app.post` to `@app.post` for forgot-password. |
 | Duplicate return | Remove the extra `return` in `track_shipment`. |

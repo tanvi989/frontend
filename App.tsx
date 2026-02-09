@@ -58,6 +58,7 @@ import Insurance from './pages/Insurance';
 import ExchangePolicy from './pages/ExchangePolicy';
 import ReturnPolicy from './pages/ReturnPolicy';
 import Shipping from './pages/Shipping';
+import DeliveryShippingTerms from './pages/DeliveryShippingTerms';
 import TermsOfUse from './pages/TermsOfUse';
 import WhyMultifolks from './pages/WhyMultifolks';
 import ReadyForMultifocals from './pages/ReadyForMultifocals';
@@ -88,14 +89,20 @@ import StorageAndHandling from './pages/StorageAndHandling';
 import TravelTips from './pages/TravelTips';
 import BustingTheMyth from './pages/BustingTheMyth';
 import OurGuarantee from './pages/OurGuarantee';
+import AllArticles from './pages/AllArticles';
 import AddPrescription from './pages/AddPrescription';
 // import { Checkout } from './pages/Checkout';
+import { PerfectFitApp } from './perfect-fit-cam/PerfectFitApp';
+import PerfectFitIndex from './perfect-fit-cam/pages/Index';
+import PerfectFitResults from './perfect-fit-cam/pages/Results';
+import PerfectFitNotFound from './perfect-fit-cam/pages/NotFound';
 
 const App: React.FC = () => {
   const location = useLocation();
 
   // Define routes that should NOT use the default Navigation/Footer logic
   const isLayoutRoute = [
+    '/perfect-fit',
     '/customer-view',
     '/new-eye-check',
     '/checkups',
@@ -155,6 +162,9 @@ const App: React.FC = () => {
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Home />} />
+            <Route path="/perfect-fit" element={<PerfectFitApp><PerfectFitIndex /></PerfectFitApp>} />
+            <Route path="/perfect-fit/results" element={<PerfectFitApp><PerfectFitResults /></PerfectFitApp>} />
+            <Route path="/perfect-fit/*" element={<PerfectFitApp><PerfectFitNotFound /></PerfectFitApp>} />
             <Route path="/about" element={<AboutUs />} />
             <Route path="/contact" element={<ContactUs />} />
             <Route path="/help" element={<Help />} />
@@ -168,6 +178,7 @@ const App: React.FC = () => {
             <Route path="/exchange-policy" element={<ExchangePolicy />} />
             <Route path="/return-policy" element={<ReturnPolicy />} />
             <Route path="/shipping" element={<Shipping />} />
+            <Route path="/delivery-shipping-terms" element={<DeliveryShippingTerms />} />
             <Route path="/terms" element={<TermsOfUse />} />
             <Route path="/why-multifolks" element={<WhyMultifolks />} />
 
@@ -204,6 +215,7 @@ const App: React.FC = () => {
             <Route path="/how-to-travel" element={<TravelTips />} />
             <Route path="/bursting-the-myth" element={<BustingTheMyth />} />
             <Route path="/our-guarantee" element={<OurGuarantee />} />
+            <Route path="/all-article" element={<AllArticles />} />
 
             {/* Product Flow */}
             <Route path="/product/:id" element={<ProductPage />} />

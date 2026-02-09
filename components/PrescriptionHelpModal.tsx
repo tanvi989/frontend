@@ -362,6 +362,25 @@ const PrescriptionHelpModal: React.FC<PrescriptionHelpModalProps> = ({
                   </text>
                 </svg>
               </div>
+              <div className="mt-8 w-full max-w-2xl text-left">
+                <h4 className="text-[#1F1F1F] font-bold text-sm uppercase tracking-wide mb-3">
+                  PD made simple
+                </h4>
+                <ul className="text-sm text-gray-700 space-y-2 list-none pl-0">
+                  <li className="flex gap-2">
+                    <span className="text-[#6B8E23] font-bold shrink-0">•</span>
+                    <span>Some prescriptions show Distance PD and Near PD — use Distance PD for progressives.</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-[#6B8E23] font-bold shrink-0">•</span>
+                    <span>If only one PD is listed, we automatically split it for each eye.</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-[#6B8E23] font-bold shrink-0">•</span>
+                    <span>MFit measures both eyes precisely, tested on thousands.</span>
+                  </li>
+                </ul>
+              </div>
             </>
           )}
 

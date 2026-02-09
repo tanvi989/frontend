@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { isRegisteredUser, syncLocalCartToBackend } from "../api/retailerApis";
 import OtpModal from "./OtpModal";
+import Toast from "./Toast";
 import { Loader2 } from "./Loader";
 import { validateEmail, validateName } from "../helpers/validateForms";
+import { getApiErrorMessage } from "../helpers/apiErrors";
 
 interface SignUpModalProps {
   open: boolean;
@@ -72,6 +74,7 @@ const SignUpModal: React.FC<SignUpModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [formErrors, setFormErrors] = useState<string[]>([]);
   const [showPassword, setShowPassword] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const handleBack = () => {
     setOtpPopUp(false);
@@ -135,20 +138,22 @@ const SignUpModal: React.FC<SignUpModalProps> = ({
       if (response.status || response.success) {
         // Registration successful - auto login
         // Use real token if available, fallback to mock only if necessary
-        const token = response.token || response.data?.token || "mock-token-" + Date.now();
+        const token = response.data?.token || response.token || "mock-token-" + Date.now();
         localStorage.setItem("token", token);
+        localStorage.setItem("email", form.email || "");
 
-        // Save user details for UI
+        // Save user details for UI (same keys as login so AuthContext/getCurrentUser see them everywhere)
         localStorage.setItem("firstName", form.firstName);
         localStorage.setItem("lastName", form.lastName);
         localStorage.setItem("customerID", response.data?.id || "MOCK_ID");
 
-        // Dispatch events for global UI updates
+        // Dispatch events for global UI updates (Navigation, Cart, AuthContext all listen)
         window.dispatchEvent(new Event("auth-change"));
         window.dispatchEvent(new Event("storage"));
 
-        // Sync guest cart to authenticated user cart
+        // Sync guest cart to authenticated user cart (needs guest_id), then clear guest so profile shows registered user
         await syncLocalCartToBackend();
+        localStorage.removeItem("guest_id");
 
         // Navigate based on context
         if (order && !perscription) {
@@ -157,19 +162,15 @@ const SignUpModal: React.FC<SignUpModalProps> = ({
         } else if (perscription && !order) {
           if (handleUpload) handleUpload(true, mode);
         } else {
-          // Show success or navigate
-          onHide();
+          setSuccessMessage("User registered successfully");
         }
       } else {
         setFormErrors([response.message || "Registration failed"]);
       }
     } catch (err: any) {
-      console.error("Registration error:", err);
-      
-      // Get the error message from the backend
-      const errorMessage = err?.response?.data?.detail?.msg || err?.message || "Registration failed. Please try again.";
-      
-      // Check if this is a mobile number format error
+      console.error("Registration error:", err?.response?.data ?? err);
+      const errorMessage = getApiErrorMessage(err, "Registration failed. Please try again.");
+      // Check if this is a mobile number format error (retry with +44 only for UK; backend now accepts international)
       const isMobileNumberError = errorMessage.toLowerCase().includes("mobile number") || 
                                  errorMessage.toLowerCase().includes("phone number") ||
                                  errorMessage.toLowerCase().includes("invalid uk mobile") ||
@@ -196,23 +197,22 @@ const SignUpModal: React.FC<SignUpModalProps> = ({
           );
           
           if (retryResponse.status || retryResponse.success) {
-            // Registration successful with modified number
-            const token = retryResponse.token || retryResponse.data?.token || "mock-token-" + Date.now();
+            const token = retryResponse.data?.token || retryResponse.token || "mock-token-" + Date.now();
             localStorage.setItem("token", token);
+            localStorage.setItem("email", form.email || "");
             localStorage.setItem("firstName", form.firstName);
             localStorage.setItem("lastName", form.lastName);
             localStorage.setItem("customerID", retryResponse.data?.id || "MOCK_ID");
-            
+            localStorage.removeItem("guest_id");
             window.dispatchEvent(new Event("auth-change"));
             window.dispatchEvent(new Event("storage"));
             await syncLocalCartToBackend();
-            
             if (order && !perscription) {
               window.location.href = "/offers";
             } else if (perscription && !order) {
               if (handleUpload) handleUpload(true, mode);
             } else {
-              onHide();
+              setSuccessMessage("User registered successfully");
             }
           } else {
             setFormErrors([retryResponse.message || "Registration failed"]);
@@ -227,10 +227,11 @@ const SignUpModal: React.FC<SignUpModalProps> = ({
             // Create a mock successful registration
             const token = "mock-token-" + Date.now();
             localStorage.setItem("token", token);
+            localStorage.setItem("email", form.email || "");
             localStorage.setItem("firstName", form.firstName);
             localStorage.setItem("lastName", form.lastName);
             localStorage.setItem("customerID", "MOCK_ID");
-            
+            localStorage.removeItem("guest_id");
             window.dispatchEvent(new Event("auth-change"));
             window.dispatchEvent(new Event("storage"));
             await syncLocalCartToBackend();
@@ -240,15 +241,13 @@ const SignUpModal: React.FC<SignUpModalProps> = ({
             } else if (perscription && !order) {
               if (handleUpload) handleUpload(true, mode);
             } else {
-              onHide();
+              setSuccessMessage("User registered successfully");
             }
           } else {
-            // Show other types of errors
-            setFormErrors([retryErr?.response?.data?.detail?.msg || "Registration failed. Please try again."]);
+            setFormErrors([getApiErrorMessage(retryErr, "Registration failed. Please try again.")]);
           }
         }
       } else {
-        // Show non-mobile number related errors
         setFormErrors([errorMessage]);
       }
     } finally {
@@ -398,9 +397,9 @@ const SignUpModal: React.FC<SignUpModalProps> = ({
           <input
             id="number"
             type="text"
-            placeholder="Mobile Number"
+            placeholder="Mobile number (any country)"
             value={form.number}
-            onChange={(e) => handleFormChange("number", e.target.value)} // No restrictions on input
+            onChange={(e) => handleFormChange("number", e.target.value)}
             className={`w-full bg-white border ${numberError ? "border-red-500" : "border-gray-200"
               } rounded-lg px-4 py-2.5 text-[#1F1F1F] font-bold focus:outline-none focus:border-[#232320] focus:ring-1 focus:ring-[#232320] transition-colors placeholder:font-medium placeholder:text-gray-400`}
           />
@@ -466,9 +465,12 @@ const SignUpModal: React.FC<SignUpModalProps> = ({
         )}
 
         {formErrors.length > 0 && (
-          <div className="bg-red-50 border border-red-100 text-red-600 text-xs p-3 rounded-lg">
-            <p className="font-bold mb-1">Please fix the following errors:</p>
-            <ul className="list-disc list-inside">
+          <div className="rounded-xl border border-red-200 bg-red-50/95 p-4 shadow-sm">
+            <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-red-800">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-red-200 text-red-700" aria-hidden>!</span>
+              Please fix the following:
+            </p>
+            <ul className="list-inside space-y-1 text-sm text-red-700">
               {formErrors.map((err, i) => (
                 <li key={i}>{err}</li>
               ))}
@@ -547,6 +549,18 @@ const SignUpModal: React.FC<SignUpModalProps> = ({
             </div>
           </div>
         ))}
+
+      {successMessage && (
+        <Toast
+          message={successMessage}
+          type="success"
+          duration={2500}
+          onClose={() => {
+            setSuccessMessage(null);
+            onHide();
+          }}
+        />
+      )}
 
       <OtpModal
         mode={mode}

@@ -84,7 +84,7 @@ export function useVoiceGuidance(options: VoiceGuidanceOptions = {}) {
     }
 
     if (positionCheck && !positionCheck.passed) {
-      speak('Please center your face in the oval guide');
+      speak('Center your face and align your eyes with the blue horizontal line for accurate try-on.');
       return;
     }
 

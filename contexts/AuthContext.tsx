@@ -24,15 +24,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // Sync auth state from localStorage on mount and whenever login/logout happens anywhere (modals, cart, full page)
   useEffect(() => {
-    const checkAuth = () => {
+    const syncUser = () => {
       const currentUser = authService.getCurrentUser();
-      if (currentUser) {
-        setUser(currentUser);
-      }
+      setUser(currentUser);
       setLoading(false);
     };
-    checkAuth();
+    syncUser();
+    window.addEventListener("auth-change", syncUser);
+    window.addEventListener("storage", syncUser);
+    return () => {
+      window.removeEventListener("auth-change", syncUser);
+      window.removeEventListener("storage", syncUser);
+    };
   }, []);
 
   const login = async (email: string, password: string) => {

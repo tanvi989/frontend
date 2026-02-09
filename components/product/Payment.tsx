@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useGooglePlacesScript, parsePlaceToAddress } from "../../hooks/useGooglePlacesScript";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { loadStripe } from "@stripe/stripe-js";
 import {
@@ -29,9 +30,12 @@ import { calculateCartSubtotal } from "../../utils/priceUtils";
 
 // Stripe **publishable** key only (never commit secret keys).
 // Set VITE_STRIPE_PUBLISHABLE_KEY in your .env (e.g. pk_test_... or pk_live_...)
-// Do not call loadStripe("") or Stripe will throw IntegrationError.
+// Only load Stripe over HTTPS to avoid "Stripe.js integrations must use HTTPS" warning (use HTTPS in dev or production).
 const publishableKey = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "").trim();
-const stripePromise = publishableKey ? loadStripe(publishableKey) : Promise.resolve(null);
+const isHttps =
+  typeof window === "undefined" || window.location.protocol === "https:";
+const stripePromise =
+  publishableKey && isHttps ? loadStripe(publishableKey) : Promise.resolve(null);
 
 interface LocationState {
   order_id?: string;
@@ -347,6 +351,42 @@ const AddressForm = React.forwardRef<
     lon: number;
   } | null>(null);
   const suggestionRef = useRef<HTMLDivElement>(null);
+  const searchAddressInputRef = useRef<HTMLInputElement>(null);
+  const searchAddressInputRefDesktop = useRef<HTMLInputElement>(null);
+  const autocompleteAttachedRef = useRef(false);
+  const autocompleteAttachedDesktopRef = useRef(false);
+  const { isReady: googlePlacesReady } = useGooglePlacesScript();
+
+  // Attach Google Places Autocomplete to Search Address inputs when script is ready
+  const attachAutocomplete = (input: HTMLInputElement, attachedRef: React.MutableRefObject<boolean>) => {
+    if (attachedRef.current) return;
+    const win = window as unknown as { google?: { maps?: { places?: { Autocomplete: new (input: HTMLInputElement, opts?: { types?: string[] }) => { getPlace: () => unknown; addListener: (ev: string, fn: () => void) => void } } } } };
+    if (!win.google?.maps?.places?.Autocomplete) return;
+    const autocomplete = new win.google.maps.places.Autocomplete(input, { types: ["address"] });
+    autocomplete.addListener("place_changed", () => {
+      const place = autocomplete.getPlace() as import("../../hooks/useGooglePlacesScript").PlaceResult & { formatted_address?: string };
+      if (!place?.address_components?.length && !place?.formatted_address) return;
+      const parsed = parsePlaceToAddress(place);
+      setFormData((prev) => ({
+        ...prev,
+        addressLine: parsed.addressLine || prev.addressLine,
+        city: parsed.city || prev.city,
+        state: parsed.state || prev.state,
+        country: parsed.country || prev.country,
+        zip: parsed.zip || prev.zip,
+      }));
+      setSearchValue(place.formatted_address || "");
+    });
+    attachedRef.current = true;
+  };
+  useEffect(() => {
+    if (!googlePlacesReady) return;
+    const timer = setTimeout(() => {
+      if (searchAddressInputRef.current) attachAutocomplete(searchAddressInputRef.current, autocompleteAttachedRef);
+      if (searchAddressInputRefDesktop.current) attachAutocomplete(searchAddressInputRefDesktop.current, autocompleteAttachedDesktopRef);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [googlePlacesReady]);
 
   // Close suggestions when clicking outside
   useEffect(() => {
@@ -534,6 +574,28 @@ const AddressForm = React.forwardRef<
             onSubmit={handleSubmit}
             className="flex flex-col gap-5"
           >
+            {/* Search Address - Google Places autofill; fields below remain editable */}
+            <div className="relative border border-gray-300 rounded-sm bg-white p-1 focus-within:border-[#1F1F1F] transition-colors">
+              <label className="block text-[10px] font-bold text-gray-400 uppercase ml-2 mt-1">
+                Search Address
+              </label>
+              <div className="flex items-center gap-2 px-2">
+                <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  ref={searchAddressInputRefDesktop}
+                  type="text"
+                  placeholder="Start typing to search with Google"
+                  value={searchValue}
+                  onChange={(e) => setSearchValue(e.target.value)}
+                  className="w-full px-2 pb-1 text-sm font-bold text-[#1F1F1F] outline-none placeholder:text-gray-300 bg-transparent border-none focus:ring-0 p-0 h-6"
+                  autoComplete="off"
+                />
+              </div>
+              <p className="text-[10px] text-gray-400 ml-2 mt-0.5 flex items-center gap-1">Powered by Google Maps</p>
+            </div>
+
             {/* Row 1 */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="relative border border-gray-300 rounded-sm bg-white p-1 focus-within:border-[#1F1F1F] transition-colors">
@@ -753,26 +815,37 @@ const AddressForm = React.forwardRef<
             </div>
           </div>
 
-          {/* Search Address Section */}
+          {/* Search Address Section - Google Places autofill; fields below remain editable */}
           <div className="space-y-4">
-            <div className="relative border border-gray-300 rounded-md p-1.5 pt-3">
+            <div className="relative border border-gray-300 rounded-md p-1.5 pt-3" ref={suggestionRef}>
               <label className="absolute -top-2 left-3 bg-white px-1 text-[11px] font-bold text-[#333]">
                 Search Address
               </label>
               <div className="flex items-center gap-2 px-2">
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
                 <input
+                  ref={searchAddressInputRef}
                   type="text"
-                  placeholder=""
+                  placeholder="Start typing to search with Google"
+                  value={searchValue}
+                  onChange={(e) => {
+                    setSearchValue(e.target.value);
+                    if (e.target.value.length > 0) setShowSuggestions(false);
+                  }}
                   className="w-full py-1 text-sm font-medium outline-none border-none bg-transparent"
+                  autoComplete="off"
                 />
               </div>
+              <p className="px-2 pt-1 text-[10px] text-gray-400 flex items-center gap-1">
+                <span>Powered by Google Maps</span>
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
+              </p>
             </div>
           </div>
 
-          {/* Address Details Section */}
+          {/* Address Details Section - Editable after autofill */}
           <div className="space-y-6">
             <h3 className="text-sm font-bold text-[#333]">Address Details</h3>
 
@@ -1294,6 +1367,8 @@ const Payment: React.FC = () => {
   const navigate = useNavigate();
   const { state } = useLocation();
   const locationState = state as LocationState;
+  const queryClient = useQueryClient();
+  const hasRefetchedAfterEmpty = useRef(false);
 
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<"address" | "payment">("address");
@@ -1330,7 +1405,7 @@ const Payment: React.FC = () => {
 
   const {
     data: cartData = {},
-    refetch,
+    refetch: refetchCart,
     isLoading: cartsLoading,
   } = useQuery({
     queryKey: ["carts", locationState?.order_id],
@@ -1349,14 +1424,75 @@ const Payment: React.FC = () => {
       }
     },
     retry: false,
+    staleTime: 0,
+    refetchOnMount: true,
   });
+
+  const [waitingForMergedCart, setWaitingForMergedCart] = useState(false);
+
+  // When cart was just merged after login, refetch so Payment shows merged items
+  useEffect(() => {
+    const onCartUpdated = () => {
+      queryClient.invalidateQueries({ queryKey: ["carts"] });
+      refetchCart();
+    };
+    window.addEventListener("cart-updated", onCartUpdated);
+    return () => window.removeEventListener("cart-updated", onCartUpdated);
+  }, [queryClient, refetchCart]);
+
+  // After login, cart can be empty on first load — refetch once when empty and user is logged in
+  useEffect(() => {
+    const cartItems = (cartData?.cart as CartItem[]) || [];
+    const isAuthenticated = !!localStorage.getItem("token");
+    if (
+      cartItems.length === 0 &&
+      isAuthenticated &&
+      !cartsLoading &&
+      !hasRefetchedAfterEmpty.current
+    ) {
+      hasRefetchedAfterEmpty.current = true;
+      setWaitingForMergedCart(true);
+      const t = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["carts"] });
+        refetchCart().finally(() => setWaitingForMergedCart(false));
+      }, 400);
+      return () => clearTimeout(t);
+    }
+    if (cartItems.length > 0) setWaitingForMergedCart(false);
+  }, [cartData?.cart, cartsLoading, queryClient, refetchCart]);
 
   if (loading || paymentsLoading || cartsLoading) {
     return <Loader />;
   }
 
   const carts = (cartData?.cart as CartItem[]) || [];
+
+  // Show loader while we refetch cart after login (so user never sees "0 products")
+  if (carts.length === 0 && waitingForMergedCart) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+        <Loader />
+        <p className="mt-4 text-sm font-medium text-[#1F1F1F]">Loading your cart...</p>
+      </div>
+    );
+  }
   const shippingCost = cartData?.shipping_cost || 0;
+
+  // Build prescription from product_details (PD from SelectPrescriptionSource: Single or Dual)
+  const buildPdPrescription = (pd: any) => {
+    if (!pd) return null;
+    const pdRight = pd.pd_right_mm ?? pd.pd_right;
+    const pdLeft = pd.pd_left_mm ?? pd.pd_left;
+    const pdSingle = pd.pd_single_mm ?? pd.pd_single;
+    const pdType = pd.pd_type ?? (pdRight != null && pdLeft != null ? "dual" : "single");
+    if (pdType === "dual" && pdRight != null && pdLeft != null) {
+      return { pdType: "Dual", pdRight: String(pdRight), pdLeft: String(pdLeft) };
+    }
+    if (pdSingle != null) {
+      return { pdType: "Single", pdSingle: String(pdSingle) };
+    }
+    return null;
+  };
 
   // ENRICH CARTS WITH PRESCRIPTIONS: Safety measure to ensure prescriptions are available
   const enrichedCarts = carts.map((item: any) => {
@@ -1389,6 +1525,12 @@ const Payment: React.FC = () => {
           ...item,
           prescription: details
         };
+      }
+
+      // 3. Fallback: build prescription from product_details (Single or Dual PD from SelectPrescriptionSource)
+      const pdPrescription = buildPdPrescription(item.product_details || {});
+      if (pdPrescription) {
+        return { ...item, prescription: pdPrescription };
       }
     } catch (err) {
       console.warn("Failed to enrich cart item with prescription:", err);
@@ -1490,11 +1632,31 @@ const Payment: React.FC = () => {
             prescription: item.prescription,
           }));
 
+        // Serializable cart for backend to persist on order (so order details show items and totals, not £0)
+        const cart_items = enrichedCarts.map((item: any) => ({
+          cart_id: item.cart_id,
+          product_id: item.product_id,
+          name: item.name,
+          quantity: item.quantity ?? 1,
+          price: item.price,
+          product: item.product,
+          lens: item.lens,
+          prescription: item.prescription,
+          product_details: item.product_details,
+          flag: item.flag,
+        }));
+
         const sessionRes = await createPaymentSession({
           order_id: orderId,
           amount: totalPayable,
           currency: "GBP",
           prescriptions: prescriptionsForOrder,
+          // Backend must persist these on the order so order details show correct totals and line items
+          cart_items,
+          subtotal: listPrice,
+          discount_amount: offerAmount,
+          shipping_cost: shippingCost,
+          total_payable: totalPayable,
           metadata: {
             customer_id: localStorage.getItem("customerID"),
             address: JSON.stringify(addressData).substring(0, 490),
@@ -1510,6 +1672,20 @@ const Payment: React.FC = () => {
         });
 
         if (sessionRes.data.success && sessionRes.data.payment_url) {
+          // Store cart + totals so PaymentSuccess can sync order (fix £0 order after payment)
+          try {
+            sessionStorage.setItem(
+              "multifolks_pending_order_sync",
+              JSON.stringify({
+                order_id: orderId,
+                cart_items,
+                subtotal: listPrice,
+                discount_amount: offerAmount,
+                shipping_cost: shippingCost,
+                total_payable: totalPayable,
+              })
+            );
+          } catch (_) {}
           // Redirect to Stripe payment page
           window.location.href = sessionRes.data.payment_url;
           return;
@@ -1683,7 +1859,7 @@ const Payment: React.FC = () => {
           open={openCustomerCart}
           close={handleCloseCartView}
           carts={carts}
-          refetch={refetch}
+          refetch={refetchCart}
           onCheckout={window.innerWidth < 768 ? () => {
             if (openCustomerCart && step === "address") {
               setStep("payment");

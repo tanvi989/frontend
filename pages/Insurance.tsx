@@ -170,9 +170,20 @@ const Insurance: React.FC = () => {
           <h2 className="text-2xl font-medium text-[#1F1F1F] mb-8 font-serif">
             Claim Form For Insurance Provider
           </h2>
-          <button className="bg-[#2B7DCD] hover:bg-[#1e6bb8] text-white font-bold py-3.5 px-8 rounded-md text-sm transition-colors shadow-sm uppercase tracking-wide">
-            Download the Generic Reimbursement Form
-          </button>
+          <a
+            href="https://cdn.multifolks.com/shared/images/EME%20Vision%20Insurance%20Claim%20form%20-%20USA.pdf"
+            download="EME-Vision-Insurance-Claim-form-USA.pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 bg-[#2B7DCD] hover:bg-[#1e6bb8] text-white font-bold py-3.5 px-8 rounded-md text-sm transition-colors shadow-sm uppercase tracking-wide"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Download EME Vision Insurance Claim Form (USA)
+          </a>
         </div>
       </div>
 

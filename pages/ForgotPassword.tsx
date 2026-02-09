@@ -93,9 +93,9 @@ const ForgotPassword: React.FC = () => {
   const handleResendPin = async () => {
     try {
       setLoading(true);
-      await authService.requestPin(email);
+      await authService.requestResetPin(email);
       setTimer(30);
-      setMessage({ type: "success", text: "PIN resent successfully." });
+      setMessage({ type: "success", text: "New reset code sent. Check your email." });
     } catch (e) {
       setMessage({ type: "error", text: "Failed to resend PIN." });
     } finally {
@@ -261,10 +261,10 @@ const ForgotPassword: React.FC = () => {
 
         {message && (
           <div
-            className={`mt - 6 p - 4 rounded - lg text - sm font - medium ${message.type === "success"
+            className={`mt-6 p-4 rounded-lg text-sm font-medium ${message.type === "success"
               ? "bg-green-50 text-green-700 border border-green-100"
               : "bg-red-50 text-red-700 border border-red-100"
-              } `}
+              }`}
           >
             {message.text}
           </div>
