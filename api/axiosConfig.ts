@@ -12,18 +12,23 @@ const error = (message: string) => ({ type: 'ERROR', payload: message });
 const success = (message: string) => ({ type: 'SUCCESS', payload: message });
 
 // Backend URL: use VITE_API_TARGET / VITE_API_URL from .env; default production backend
-export const API_BASE_URL = "https://finalbackend.multifolks.com";
+export const API_BASE_URL = "https://livebackend.multifolks.com";
 
 const env = (import.meta as any)?.env ?? {};
 let ENV_API_TARGET = (env.VITE_API_TARGET || env.VITE_API_URL || "").trim();
 if (ENV_API_TARGET && (ENV_API_TARGET.includes("http//") || !/^https?:\/\//.test(ENV_API_TARGET))) {
   ENV_API_TARGET = "";
 }
-const RESOLVED_BASE_URL = ENV_API_TARGET
-  ? (ENV_API_TARGET.replace(/\/+$/, "") + "/")
-  : (API_BASE_URL.replace(/\/+$/, "") + "/");
 
-console.log('[API] Base URL:', RESOLVED_BASE_URL);
+// In dev (localhost), use relative URL so Vite proxy handles requests → avoids CORS (backend must not send duplicate Access-Control-Allow-Origin)
+const isLocalDev = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+const RESOLVED_BASE_URL = isLocalDev
+  ? ""
+  : ENV_API_TARGET
+    ? (ENV_API_TARGET.replace(/\/+$/, "") + "/")
+    : (API_BASE_URL.replace(/\/+$/, "") + "/");
+
+console.log('[API] Base URL:', RESOLVED_BASE_URL || "(relative – using Vite proxy)");
 
 const axios = Axios.create({
   baseURL: RESOLVED_BASE_URL,

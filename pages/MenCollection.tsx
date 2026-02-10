@@ -20,6 +20,8 @@ import { ShapeFilter } from "../components/ShapeFilter";
 import { Check, ScanLine } from "lucide-react";
 import { getHexColorsFromNames } from "../utils/colorNameToHex";
 import { trackViewItemList } from "@/utils/analytics";
+import { filterExcludedBrandProducts } from "@/utils/excludedBrands";
+import { getFrameWidth } from "@/data/frameWidthBySkuid";
 
 // --- FILTER DATA ---
 const PRICES = ["£40 - 80", "£80 - 100", "£100 - 120", "£120 - 140"];
@@ -515,7 +517,8 @@ const MenCollection: React.FC = () => {
 
       console.log("Fetching ALL MEN products for client pagination:", params);
       const response = await getAllProducts(params);
-      const products = response.data?.products || response.data?.data || [];
+      const rawProducts = response.data?.products || response.data?.data || [];
+      const products = filterExcludedBrandProducts(rawProducts);
 
       // Truncate naming_system to first three parts
       const processedProducts = products.map((p: any) => {
@@ -1011,10 +1014,13 @@ const MenCollection: React.FC = () => {
                   >
                     <div className="relative p-0 bg-[#F7F7F7]">
 
-                      {/* Image Container - 384x332 when VTO (matches measurement tab); else 1.4 for product images */}
+                      {/* Image Container - 384x332 when VTO on desktop; responsive VTO on mobile to prevent image breaking */}
                       <div
-                        className={`p-0 bg-[#F7F7F7] flex relative rounded overflow-hidden ${fitEnabled && captureSession ? 'mx-auto' : 'aspect-[1.4]'}`}
-                        style={fitEnabled && captureSession ? { width: 384, height: 332 } : undefined}
+                        className={`p-0 bg-[#F7F7F7] flex relative rounded overflow-hidden ${
+                          fitEnabled && captureSession
+                            ? 'mx-auto w-full max-w-full aspect-[384/332] min-h-0 lg:w-[384px] lg:h-[332px] lg:aspect-auto'
+                            : 'aspect-[1.4]'
+                        }`}
                       >
                         {/* Color Dots - Use variants array from API */}
                         {(() => {
@@ -1080,10 +1086,17 @@ const MenCollection: React.FC = () => {
                       </div>
                       {/* Price and Naming System */}
                       <div className="flex justify-between items-end mt-1 px-1 mx-2">
-                        <span className="text-xs md:text-lg font-bold text-[#1F1F1F] uppercase tracking-wider">
-                          {product.naming_system}
-                        </span>
-                        <span className="text-xs md:text-lg font-bold text-[#1F1F1F]">
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-xs md:text-lg font-bold text-[#1F1F1F] uppercase tracking-wider">
+                            {product.naming_system}
+                          </span>
+                          {getFrameWidth(product.skuid) != null && (
+                            <span className="text-[10px] md:text-xs text-gray-500 mt-0.5">
+                              Frame width: {getFrameWidth(product.skuid)} mm
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs md:text-lg font-bold text-[#1F1F1F] shrink-0 ml-1">
                           £{product.price}
                         </span>
                       </div>

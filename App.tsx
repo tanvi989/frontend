@@ -21,6 +21,8 @@ import KnowledgeBase from './pages/KnowledgeBase';
 import AboutUs from './pages/AboutUs';
 import MenCollection from './pages/MenCollection';
 import AllProducts from './pages/AllProducts';
+import GlassesPage from './pages/GlassesPage';
+import GlassesMobile from './pages/GlassesMobile';
 import WomenCollection from './pages/WomenCollection';
 import Cart from './pages/Cart';
 import CheckoutPreview from './pages/CheckoutPreview';
@@ -168,7 +170,8 @@ const App: React.FC = () => {
             <Route path="/about" element={<AboutUs />} />
             <Route path="/contact" element={<ContactUs />} />
             <Route path="/help" element={<Help />} />
-            <Route path="/glasses" element={<AllProducts />} />
+            <Route path="/glasses" element={<GlassesPage />} />
+            <Route path="/glasses-m" element={<GlassesMobile />} />
             <Route path="/glasses/men" element={<MenCollection />} />
             <Route path="/glasses/women" element={<WomenCollection />} />
 

@@ -1481,14 +1481,16 @@ const ProductPage: React.FC = () => {
         </div>
       </div>
 
-      {/* VTO: fixed at bottom center until user scrolls to RECOMMENDED FOR YOU — then slides up */}
+      {/* VTO: mobile = top-left below navbar; desktop = bottom center until scroll to RECOMMENDED */}
       {capturedData && product && (
         <>
           <button
             type="button"
             onClick={() => setVtoModalOpen(true)}
-            className={`fixed left-1/2 -translate-x-1/2 z-[100] w-[96px] h-[96px] cursor-pointer hover:opacity-95 transition-all duration-500 ease-out p-0 ${
-              vtoThumbHidden ? "bottom-full opacity-0 pointer-events-none" : "bottom-4 opacity-100"
+            className={`fixed z-[100] cursor-pointer hover:opacity-95 transition-all duration-500 ease-out p-0 ${
+              isMobile
+                ? "left-4 top-[4.5rem] w-14 h-14 opacity-100"
+                : `left-1/2 -translate-x-1/2 w-[96px] h-[96px] ${vtoThumbHidden ? "bottom-full opacity-0 pointer-events-none" : "bottom-4 opacity-100"}`
             }`}
             aria-label="View try-on"
           >
@@ -1509,10 +1511,14 @@ const ProductPage: React.FC = () => {
               aria-modal="true"
             >
               <div
-                className="relative bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden p-0"
+                className={`relative bg-white rounded-xl shadow-2xl overflow-hidden p-0 ${!isMobile ? "max-w-md w-full" : ""}`}
                 onClick={(e) => e.stopPropagation()}
+                style={isMobile ? { width: 280, height: 231 } : undefined}
               >
-                <div className="mx-auto overflow-hidden" style={{ width: 384, height: 332 }}>
+                <div
+                  className="mx-auto overflow-hidden"
+                  style={isMobile ? { width: 280, height: 231 } : { width: 384, height: 332 }}
+                >
                   <VtoProductOverlay
                     captureSession={capturedData}
                     productSkuid={String(product.skuid || product.id || id || "")}

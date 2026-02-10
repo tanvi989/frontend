@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
   // Load environment variables starting with VITE_
   const env = loadEnv(mode, process.cwd(), 'VITE_');
 
-  const proxyTarget = env.VITE_API_TARGET || env.VITE_API_URL || 'https://finalbackend.multifolks.com';
+  const proxyTarget = env.VITE_API_TARGET || env.VITE_API_URL || 'https://livebackend.multifolks.com';
   const isLocalBackend = proxyTarget.includes('localhost');
   const vtobTarget = env.VITE_GETMYFIT_API_BASE || 'https://vtob.multifolks.com';
 
@@ -76,6 +76,7 @@ export default defineConfig(({ mode }) => {
         'test.tanviparadkar.in',
         'test.multifolks.com',
         'finalbackend.multifolks.com',
+        'livebackend.multifolks.com',
         'final.multifolks.com'
       ],
     },

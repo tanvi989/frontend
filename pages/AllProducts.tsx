@@ -19,6 +19,8 @@ import { getHexColorsFromNames } from "../utils/colorNameToHex";
 import { GenderFilter } from "@/components/GenderFilter";
 import { parseDimensionsString } from "@/utils/frameDimensions";
 import { trackViewItemList } from "@/utils/analytics";
+import { filterExcludedBrandProducts } from "@/utils/excludedBrands";
+import { getFrameWidth } from "@/data/frameWidthBySkuid";
 import { FrameAdjustmentControls } from "@/components/try-on/FrameAdjustmentControls";
 import { DEFAULT_ADJUSTMENTS, type AdjustmentValues } from "@/utils/frameOverlayUtils";
 import { ChevronDown, ChevronUp } from "lucide-react";
@@ -373,7 +375,12 @@ const MobileFilterSortModal: React.FC<{
     );
   };
 
-const AllProducts: React.FC = () => {
+interface AllProductsProps {
+  /** When true (e.g. on /glasses-m), use responsive VTO image container for mobile. */
+  mobileLayout?: boolean;
+}
+
+const AllProducts: React.FC<AllProductsProps> = ({ mobileLayout = false }) => {
   const [isGetMyFitOpen, setIsGetMyFitOpen] = useState(false);
   const [getMyFitInitialStep, setGetMyFitInitialStep] = useState<'1' | '4'>('1');
   const [fitEnabled, setFitEnabled] = useState(false);
@@ -533,7 +540,8 @@ const AllProducts: React.FC = () => {
 
       console.log("Fetching ALL products for client pagination:", params);
       const response = await getAllProducts(params);
-      const products = response.data?.products || response.data?.data || [];
+      const rawProducts = response.data?.products || response.data?.data || [];
+      const products = filterExcludedBrandProducts(rawProducts);
 
       // Truncate naming_system to first three parts
       const processedProducts = products.map((p: any) => {
@@ -653,7 +661,8 @@ const AllProducts: React.FC = () => {
   const FRAME_WIDTH_MAX_OFFSET_MM = 15; // faceWidth + 15
   const TOP_M_FIT_LIMIT = 200; // show more than 50
 
-  // Products whose frame width is in range [faceWidth, faceWidth+15] (e.g. 130 → 130–145), sorted by closest match
+  // Products whose frame width is in range [faceWidth, faceWidth+15] (e.g. 135 → 135–150 mm), sorted by closest match.
+  // Use CSV frame width (getFrameWidth) first, then API dimensions string.
   const topMfitProducts = useMemo(() => {
     const faceWidthMm = captureSession?.measurements?.face_width;
     if (!faceWidthMm || !allProducts.length) return [];
@@ -661,9 +670,8 @@ const AllProducts: React.FC = () => {
     const maxFrame = faceWidthMm + FRAME_WIDTH_MAX_OFFSET_MM;
     const withWidth: { product: any; width: number }[] = [];
     for (const p of allProducts) {
-      const dims = p.dimensions ? parseDimensionsString(p.dimensions) : null;
-      if (!dims) continue;
-      const frameWidth = dims.width;
+      const frameWidth = getFrameWidth(p.skuid) ?? (p.dimensions ? parseDimensionsString(p.dimensions).width : undefined);
+      if (frameWidth == null) continue;
       if (frameWidth >= minFrame && frameWidth <= maxFrame) {
         withWidth.push({ product: p, width: frameWidth });
       }
@@ -686,9 +694,10 @@ const AllProducts: React.FC = () => {
     return result;
   }, [sortBy, allProducts]);
 
-  // When "Top matches M fit" is ON, grid shows only frame-width-matched products (up to 50); otherwise all
+  // When "Top matches M fit" is ON (or on mobile glasses-m always on), grid shows only frame-width-matched products
+  const effectiveTopMfit = topMfitEnabled || (mobileLayout && topMfitProducts.length > 0);
   const gridSourceProducts = useMemo(() => {
-    if (topMfitEnabled && topMfitProducts.length > 0) {
+    if (effectiveTopMfit && topMfitProducts.length > 0) {
       let result = [...topMfitProducts];
       if (sortBy === "Price Low To High") {
         result.sort((a: any, b: any) => a.price - b.price);
@@ -702,13 +711,13 @@ const AllProducts: React.FC = () => {
       return result;
     }
     return filteredAndSortedProducts;
-  }, [topMfitEnabled, topMfitProducts, sortBy, filteredAndSortedProducts]);
+  }, [effectiveTopMfit, topMfitProducts, sortBy, filteredAndSortedProducts]);
 
   // --- PAGINATION LOGIC ---
   useEffect(() => {
     setCurrentPage(1); // Reset page on filter change
     setVisibleMobileCount(48); // Reset mobile scroll on filter change
-  }, [selectedFilters, sortBy, topMfitEnabled]); // Reset on both filter and sort changes
+  }, [selectedFilters, sortBy, effectiveTopMfit]); // Reset on both filter and sort changes
 
   // Split Logic: Mobile (Infinite) vs Desktop (Paginated)
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -774,11 +783,11 @@ const AllProducts: React.FC = () => {
       </div> */}
 
       {/* --- Shop Our Range Banner --- */}
-      <div className="w-full max-w-[1200px] mx-auto mb-0 md:mb-8 px-0 md:px-4">
+      <div className={`w-full max-w-[1200px] mx-auto mb-0 md:mb-8 px-0 md:px-4 ${mobileLayout ? 'overflow-hidden' : ''}`}>
         <img
           src="/men-collection-banner.png"
           alt="Shop Our Range"
-          className="w-full h-auto object-cover md:object-contain scale-110 md:scale-100"
+          className={`w-full h-auto ${mobileLayout ? 'object-contain max-w-full' : 'object-cover md:object-contain scale-110 md:scale-100'}`}
         />
       </div>
 
@@ -918,7 +927,7 @@ const AllProducts: React.FC = () => {
             {fitEnabled && captureSession?.measurements?.face_width != null && (
               <span className="text-xs text-gray-600">
                 Face: <strong>{captureSession.measurements.face_width.toFixed(0)} mm</strong>
-                {topMfitEnabled && (
+                {(mobileLayout ? effectiveTopMfit : topMfitEnabled) && (
                   <> · Frame: {Math.round(captureSession.measurements.face_width + FRAME_WIDTH_MIN_OFFSET_MM)}–{Math.round(captureSession.measurements.face_width + FRAME_WIDTH_MAX_OFFSET_MM)} mm</>
                 )}
               </span>
@@ -926,22 +935,24 @@ const AllProducts: React.FC = () => {
             <div className="flex items-center gap-3">
               {fitEnabled && (
                 <>
-                  <span className="text-xs font-bold text-[#D96C47] uppercase tracking-wider">
-                    Top matches M fit{` (${topMfitProducts.length})`}
-                  </span>
+                  {!mobileLayout && (
+                    <span className="text-xs font-bold text-[#D96C47] uppercase tracking-wider">
+                      Top matches M fit{` (${topMfitProducts.length})`}
+                    </span>
+                  )}
                   <button
                     type="button"
                     role="switch"
-                    aria-checked={topMfitEnabled}
-                    onClick={handleTopMfitToggle}
-                    disabled={!captureSession?.measurements?.face_width}
-                    className={`relative w-12 h-7 rounded-full p-0.5 transition-colors duration-300 flex items-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${topMfitEnabled
+                    aria-checked={mobileLayout ? true : topMfitEnabled}
+                    onClick={mobileLayout ? undefined : handleTopMfitToggle}
+                    disabled={mobileLayout || !captureSession?.measurements?.face_width}
+                    className={`relative w-12 h-7 rounded-full p-0.5 transition-colors duration-300 flex items-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${(mobileLayout ? true : topMfitEnabled)
                       ? "bg-[#D96C47]"
                       : "bg-gray-300"
                       }`}
                   >
                     <span
-                      className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-sm transition-all duration-300 ease-out ${topMfitEnabled ? "left-[calc(100%-26px)]" : "left-0.5"}`}
+                      className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-sm transition-all duration-300 ease-out ${(mobileLayout ? true : topMfitEnabled) ? "left-[calc(100%-26px)]" : "left-0.5"}`}
                     />
                   </button>
                 </>
@@ -1110,8 +1121,8 @@ const AllProducts: React.FC = () => {
               )} */}
           </div>
 
-          {/* When MFit on but Top matches off: show hint. When Top matches on, grid below shows only matches. */}
-          {fitEnabled && !topMfitEnabled && (() => {
+          {/* When MFit on but Top matches off: show hint. When Top matches on (or mobileLayout), grid shows matches. Hide hint on mobile (glasses-m). */}
+          {fitEnabled && !effectiveTopMfit && !mobileLayout && (() => {
             const faceMm = captureSession?.measurements?.face_width;
             const minF = faceMm != null ? Math.round(faceMm + FRAME_WIDTH_MIN_OFFSET_MM) : 130;
             const maxF = faceMm != null ? Math.round(faceMm + FRAME_WIDTH_MAX_OFFSET_MM) : 145;
@@ -1143,12 +1154,24 @@ const AllProducts: React.FC = () => {
                   }
                   className="cursor-pointer group bg-white border border-gray-200 hover:border-gray-300 hover:shadow-lg transition-all duration-300"
                 >
-                  <div className="relative p-0 bg-[#F7F7F7]">
+                  <div className="relative p-0 bg-[#F7F7F7] overflow-hidden">
 
-                    {/* Image Container - 384x332 when VTO (matches measurement tab); else 1.4 for product images */}
+                    {/* Image Container - same fixed size as VTO preview (popup Step 4): 384x332 desktop, 280x231 mobile (glasses-m) so frame alignment matches */}
                     <div
-                      className={`p-0 bg-[#F7F7F7] flex relative rounded overflow-hidden ${fitEnabled && captureSession ? 'mx-auto' : 'aspect-[1.4]'}`}
-                      style={fitEnabled && captureSession ? { width: 384, height: 332 } : undefined}
+                      className={`p-0 bg-[#F7F7F7] flex relative rounded overflow-hidden ${
+                        fitEnabled && captureSession
+                          ? mobileLayout
+                            ? ''
+                            : 'mx-auto'
+                          : 'aspect-[1.4]'
+                      }`}
+                      style={
+                        fitEnabled && captureSession
+                          ? mobileLayout
+                            ? { width: 280, height: 231 }
+                            : { width: 384, height: 332 }
+                          : undefined
+                      }
                     >
                       {/* Color Dots - Use variants array from API */}
                       {(() => {
@@ -1190,6 +1213,7 @@ const AllProducts: React.FC = () => {
                           productSkuid={product.skuid}
                           productDimensions={product.dimensions}
                           productName={product.name}
+                          imagePosition={mobileLayout ? 'left' : 'center'}
                         />
                       ) : (
                         <>
@@ -1213,10 +1237,17 @@ const AllProducts: React.FC = () => {
 
                     {/* Price and Naming System */}
                     <div className="flex justify-between items-end mt-1 px-2">
-                      <span className="text-xs md:text-lg font-bold text-[#1F1F1F] uppercase tracking-wider">
-                        {product.naming_system}
-                      </span>
-                      <span className="text-xs md:text-base font-bold text-[#1F1F1F]">
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs md:text-lg font-bold text-[#1F1F1F] uppercase tracking-wider">
+                          {product.naming_system}
+                        </span>
+                        {getFrameWidth(product.skuid) != null && (
+                          <span className="text-[10px] md:text-xs text-gray-500 mt-0.5">
+                            Frame width: {getFrameWidth(product.skuid)} mm
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs md:text-base font-bold text-[#1F1F1F] shrink-0 ml-1">
                         £{product.price}
                       </span>
                     </div>
@@ -1336,9 +1367,9 @@ const AllProducts: React.FC = () => {
                 </button>
               </div>
             )}
-            {/* Showing count - when Top matches M fit is on, show face + frame width and 50 M fit matches */}
+            {/* Showing count - when Top matches M fit is on, show face + frame width and M fit matches */}
             <div className="text-center text-sm text-gray-500 my-8 lg:my-16">
-              {topMfitEnabled ? (
+              {effectiveTopMfit ? (
                 <>
                   Face width: <strong className="text-gray-700">{captureSession?.measurements?.face_width?.toFixed(0) ?? '—'} mm</strong>
                   {' · '}

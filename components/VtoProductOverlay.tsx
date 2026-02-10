@@ -50,6 +50,8 @@ interface VtoProductOverlayProps {
   productName: string;
   /** When true, hide the small frame thumbnail (e.g. for product page preview box) */
   compact?: boolean;
+  /** Align face image left (e.g. on glasses-m) or center. Default center. */
+  imagePosition?: 'left' | 'center';
 }
 
 /**
@@ -62,6 +64,7 @@ export function VtoProductOverlay({
   productDimensions,
   productName,
   compact = false,
+  imagePosition = 'center',
 }: VtoProductOverlayProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -128,9 +131,18 @@ export function VtoProductOverlay({
     if (!transform) {
       return { left: '50%', top: '45%', transform: 'translate(-50%, -50%) scale(0.38)' };
     }
-    const displayX = transform.midX + adj.offsetX;
+    let displayX = transform.midX + adj.offsetX;
     const displayY = transform.midY + adj.offsetY;
-    const finalScale = transform.scaleFactor * adj.scaleAdjust;
+    // When face image is object-left (glasses-m), frame was computed for object-center; shift frame left by same offset
+    if (imagePosition === 'left') {
+      const scale = Math.min(containerSize.width / naturalSize.width, containerSize.height / naturalSize.height);
+      const drawnWidth = naturalSize.width * scale;
+      const centerOffsetX = (containerSize.width - drawnWidth) / 2;
+      displayX -= centerOffsetX;
+    }
+    // Slightly larger frame on small containers (mobile / glasses-m) so frame is more visible vs face
+    const scaleBoost = containerSize.width > 0 && containerSize.width < 400 ? 1.2 : 1;
+    const finalScale = transform.scaleFactor * adj.scaleAdjust * scaleBoost;
     const finalRotation = transform.angleRad + (adj.rotationAdjust * Math.PI) / 180;
     return {
       position: 'absolute' as const,
@@ -396,7 +408,7 @@ export function VtoProductOverlay({
         ref={imgRef}
         src={captureSession.processedImageDataUrl}
         alt="Your fit"
-        className="w-full h-full object-contain object-center"
+        className={`w-full h-full object-contain ${imagePosition === 'left' ? 'object-left' : 'object-center'}`}
         onLoad={handleImageLoad}
       />
       {!frameError && (

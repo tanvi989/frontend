@@ -632,7 +632,9 @@ const Cart: React.FC = () => {
   // Frontend Calculation of Subtotal to ensure display consistency with item cards
   const frontendSubtotal = calculateCartSubtotal(cartItems);
 
-  const discountAmount = Number(cartData?.discount_amount || 0);
+  // LAUNCH50 = always 50% off subtotal (same as desktop)
+  const isLaunch50 = (cartData?.coupon?.code || "").toUpperCase() === "LAUNCH50";
+  const discountAmount = isLaunch50 ? frontendSubtotal * 0.5 : Number(cartData?.discount_amount || 0);
   const shippingCost = Number(cartData?.shipping_cost || 0);
   const frontendTotalPayable = frontendSubtotal - discountAmount + shippingCost;
 

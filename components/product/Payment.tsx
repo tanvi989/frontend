@@ -1606,9 +1606,10 @@ const Payment: React.FC = () => {
     }) || [];
 
   // Calculate totals directly from backend response (matches Cart.tsx)
-  // Preventing double-taxation or local mismatch
+  // LAUNCH50 = always 50% off subtotal (same as cart)
   const listPrice = calculateCartSubtotal(carts);
-  const offerAmount = cartData?.discount_amount || 0;
+  const isLaunch50 = (cartData?.coupon?.code || "").toUpperCase() === "LAUNCH50";
+  const offerAmount = isLaunch50 ? listPrice * 0.5 : (cartData?.discount_amount || 0);
   // Calculate total payable consistent with Cart.tsx
   const totalPayable = listPrice - offerAmount + shippingCost;
 

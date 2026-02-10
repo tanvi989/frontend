@@ -15,6 +15,13 @@ const TEST_FRAME_SKUID = 'E10A1012';
 export interface MeasurementsTabProps {
   /** When provided, clicking "View Measurement" switches to Virtual Try-On tab (where PD, Face Width, Face Shape are shown). */
   onViewMeasurements?: () => void;
+  /** When set (e.g. mobile popup), use this size for the frame preview instead of 384x332. */
+  previewWidth?: number;
+  previewHeight?: number;
+  /** When true (mobile), center VTO image and show measurement + controls below. */
+  compactLayout?: boolean;
+  /** When true (e.g. mobile popup), hide frame alignment controls and use 100% size by default. */
+  hideFrameAlignment?: boolean;
 }
 
 /** Face shape → frame suggestions for multifocals (Shapes to Pick, Why, Shapes to Avoid, Why) */
@@ -63,12 +70,16 @@ function getSuggestionForShape(faceShape: string | undefined) {
   return FACE_SHAPE_SUGGESTIONS[key] ?? FACE_SHAPE_SUGGESTIONS[key.replace(/\s+/g, '_')] ?? null;
 }
 
-export function MeasurementsTab({ onViewMeasurements }: MeasurementsTabProps = {}) {
+const FIXED_100_ADJUSTMENTS: AdjustmentValues = { offsetX: 0, offsetY: 0, scaleAdjust: 1, rotationAdjust: 0 };
+
+export function MeasurementsTab({ onViewMeasurements, previewWidth = 384, previewHeight = 332, compactLayout = false, hideFrameAlignment = false }: MeasurementsTabProps = {}) {
   const { capturedData, setCapturedData } = useCaptureData();
   const [adjustments, setAdjustments] = useState<AdjustmentValues>(() =>
-    capturedData?.frameAdjustments
-      ? { ...capturedData.frameAdjustments }
-      : { ...DEFAULT_ADJUSTMENTS }
+    hideFrameAlignment
+      ? { ...FIXED_100_ADJUSTMENTS }
+      : capturedData?.frameAdjustments
+        ? { ...capturedData.frameAdjustments }
+        : { ...DEFAULT_ADJUSTMENTS }
   );
   const [testProduct, setTestProduct] = useState<{ dimensions?: string; name: string } | null>(null);
   const [showMeasurementConfirm, setShowMeasurementConfirm] = useState(false);
@@ -142,32 +153,73 @@ export function MeasurementsTab({ onViewMeasurements }: MeasurementsTabProps = {
 
   const { faceShape } = capturedData;
 
+  const measurements = capturedData?.measurements;
+  const isCompact = compactLayout || previewWidth !== 384;
+
   return (
     <div className="space-y-4 animate-fadeIn">
-      {/* Instruction + Face with test frame – same component as /glasses for identical view */}
-      <div className="space-y-3 text-left">
-        <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">
+      {/* Instruction + Face with test frame */}
+      <div className={isCompact ? 'space-y-3 flex flex-col items-center' : 'space-y-3 text-left'}>
+        <p className="text-xs font-bold text-gray-700 uppercase tracking-wide text-center w-full">
           Please align how you like to wear glasses
         </p>
-        {/* Image left, Fine-tune panel right. DO NOT change image width/height (384x332). */}
-        <div className="grid grid-cols-1 md:grid-cols-[384px_1fr] gap-4 items-start min-w-0">
-          <div className="p-0 bg-[#F7F7F7] flex relative rounded-xl overflow-hidden shadow-sm" style={{ width: 384, height: 332 }}>
-            <VtoProductOverlay
-              captureSession={captureWithAdjustments}
-              productSkuid={TEST_FRAME_SKUID}
-              productDimensions={testProduct?.dimensions}
-              productName={testProduct?.name ?? 'Test frame'}
-              compact
-            />
+        {/* Desktop: grid image left, controls right. Mobile (compactLayout): VTO centered, then measurement + controls below. */}
+        {isCompact ? (
+          <>
+            <div className="flex justify-center w-full">
+              <div className="p-0 bg-[#F7F7F7] flex relative rounded-xl overflow-hidden shadow-sm shrink-0" style={{ width: previewWidth, height: previewHeight }}>
+                <VtoProductOverlay
+                  captureSession={captureWithAdjustments}
+                  productSkuid={TEST_FRAME_SKUID}
+                  productDimensions={testProduct?.dimensions}
+                  productName={testProduct?.name ?? 'Test frame'}
+                  compact
+                />
+              </div>
+            </div>
+            {measurements && (
+              <div className="w-full text-center py-2 px-3 bg-gray-100 rounded-xl">
+                <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">Measurement</p>
+                <p className="text-sm font-semibold text-gray-900 mt-1">
+                  PD <span className="text-primary">{measurements.pd != null ? `${Number(measurements.pd).toFixed(1)} mm` : '—'}</span>
+                  {measurements.face_width != null && (
+                    <span className="text-gray-600 ml-3">Face width {Number(measurements.face_width).toFixed(0)} mm</span>
+                  )}
+                </p>
+              </div>
+            )}
+            {!hideFrameAlignment && (
+              <div className="w-full flex justify-center">
+                <FrameAdjustmentControls
+                  values={adjustments}
+                  onChange={handleAdjustmentsChange}
+                  onReset={handleResetAdjustments}
+                />
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-[384px_1fr] gap-4 items-start min-w-0" style={previewWidth !== 384 ? { gridTemplateColumns: `${previewWidth}px 1fr` } : undefined}>
+            <div className="p-0 bg-[#F7F7F7] flex relative rounded-xl overflow-hidden shadow-sm" style={{ width: previewWidth, height: previewHeight }}>
+              <VtoProductOverlay
+                captureSession={captureWithAdjustments}
+                productSkuid={TEST_FRAME_SKUID}
+                productDimensions={testProduct?.dimensions}
+                productName={testProduct?.name ?? 'Test frame'}
+                compact
+              />
+            </div>
+            {!hideFrameAlignment && (
+              <div className="flex justify-end min-w-0">
+                <FrameAdjustmentControls
+                  values={adjustments}
+                  onChange={handleAdjustmentsChange}
+                  onReset={handleResetAdjustments}
+                />
+              </div>
+            )}
           </div>
-          <div className="flex justify-end min-w-0">
-            <FrameAdjustmentControls
-              values={adjustments}
-              onChange={handleAdjustmentsChange}
-              onReset={handleResetAdjustments}
-            />
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Face shape frame suggestions – 2x2 grid (only when shape is known) */}

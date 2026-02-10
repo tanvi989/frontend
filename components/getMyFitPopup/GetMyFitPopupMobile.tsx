@@ -12,6 +12,7 @@ import { useVoiceGuidance } from '@/hooks/useVoiceGuidance';
 import { FaceGuideOverlay } from '@/components/try-on/FaceGuideOverlay';
 import { saveCaptureSession } from '@/utils/captureSession';
 import { toast } from 'sonner';
+import type { FaceLandmarks } from '@/types/face-validation';
 
 interface GetMyFitPopupMobileProps {
   open: boolean;
@@ -28,6 +29,17 @@ const PROCESSING_MESSAGES = [
   "Almost there...",
 ];
 
+/** Same PD calculation as perfect-fit-cam usePDMeasurement: face width calibration → mm */
+const AVERAGE_FACE_WIDTH_MM = 140;
+function computePDFromLandmarks(landmarks: { leftEye?: { x: number }; rightEye?: { x: number }; faceLeft?: { x: number }; faceRight?: { x: number } }): { pd: number; pd_left: number; pd_right: number } | null {
+  if (landmarks?.leftEye?.x == null || landmarks?.rightEye?.x == null || landmarks?.faceLeft?.x == null || landmarks?.faceRight?.x == null) return null;
+  const faceWidthNorm = Math.abs((landmarks.faceRight!.x ?? 0) - (landmarks.faceLeft!.x ?? 0));
+  const pdNorm = Math.abs((landmarks.rightEye!.x ?? 0) - (landmarks.leftEye!.x ?? 0));
+  if (faceWidthNorm <= 0) return null;
+  const pdMm = Math.round((AVERAGE_FACE_WIDTH_MM * pdNorm) / faceWidthNorm);
+  return { pd: pdMm, pd_left: Math.round(pdMm / 2), pd_right: Math.round(pdMm / 2) };
+}
+
 const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose }) => {
   const { setCapturedData } = useCaptureData();
   const navigate = useNavigate();
@@ -42,6 +54,12 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
   const [isCapturing, setIsCapturing] = useState(false);
   const [removedPreviewUrl, setRemovedPreviewUrl] = useState<string | null>(null);
   const [showSnapHint, setShowSnapHint] = useState(false);
+  /** Step 4 tab: measurements | frames (same as desktop – controlled so MeasurementsTab can switch to frames) */
+  const [step4Tab, setStep4Tab] = useState<'measurements' | 'frames'>('measurements');
+
+  useEffect(() => {
+    if (currentStep === '4') setStep4Tab('measurements');
+  }, [currentStep]);
 
   useEffect(() => {
     if (currentStep !== '3' || capturedImageData) {
@@ -71,6 +89,8 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
   const streamRef = useRef<MediaStream | null>(null);
   /** Keep last valid landmarks so SNAP still works if the current frame momentarily has none */
   const lastLandmarksRef = useRef<any>(null);
+  /** On mobile: only auto-capture after all checks have been passing for this long (ms) */
+  const allChecksStableTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 380, height: 420 });
 
   const { speakGuidance, speak, cancel: cancelVoice, currentMessage } = useVoiceGuidance({ enabled: true, debounceMs: 3000 });
@@ -106,7 +126,7 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
     if (currentStep === '1') speak('Welcome to Multi Folks Fit. Let\'s get your perfect measurements. Please agree to the privacy policy to begin.');
     if (currentStep === '2') speak('Tuck your hair behind your ears and keep your glasses on. Face the camera in good lighting.');
     if (currentStep === '3' && !capturedImageData && !isProcessing) {
-      speak('Position your face in the oval. Align your eyes with the blue line. Keep your head straight and look at the camera. We will capture automatically when everything is aligned. If you are not able to get a photo, click SNAP to take your photo.');
+      speak('Position your face in the oval. Keep your head straight and look at the camera. We will capture automatically when everything is aligned. If you are not able to get a photo, click SNAP to take your photo.');
     }
   }, [open, currentStep, speak]);
 
@@ -152,8 +172,9 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
   const initializeCamera = async () => {
     try {
       if (streamRef.current) stopCamera();
+      // Use facingMode only so device gives normal/wider FOV (no forced zoom from resolution)
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: facingMode, width: { ideal: 720 }, height: { ideal: 1280 } }
+        video: { facingMode: facingMode }
       });
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
@@ -167,15 +188,21 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
     setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
   };
 
-  const captureAndProcess = useCallback(async () => {
+  // Same as perfect-fit-cam: capture only with valid video + landmarks; use landmarks from the frame that passed validation
+  const captureAndProcess = useCallback(async (landmarksForCapture?: FaceLandmarks | null) => {
     const video = videoRef.current;
-    const landmarks = faceValidationState.landmarks ?? lastLandmarksRef.current;
+    const landmarks = landmarksForCapture ?? faceValidationState.landmarks ?? lastLandmarksRef.current;
     if (!video || !landmarks || isProcessing) return;
 
-    setIsCapturing(false);
+    // Proper checking like perfect-fit-cam: video must have valid dimensions before capture
+    if (video.videoWidth <= 0 || video.videoHeight <= 0) {
+      toast.error('Camera not ready. Please wait a moment.');
+      return;
+    }
+
     setIsProcessing(true);
     setProcessingStep('Capturing...');
-    
+
     try {
       const canvas = document.createElement('canvas');
       canvas.width = video.videoWidth;
@@ -189,15 +216,14 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
       }
       ctx.drawImage(video, 0, 0);
 
-      const imageDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      const imageDataUrl = canvas.toDataURL('image/jpeg', 0.9);
       setCapturedImageData(imageDataUrl);
       stopCamera();
-      
+
       speak('Image captured');
 
       const detectResult = await detectGlasses(imageDataUrl);
       if (detectResult.success && detectResult.glasses_detected) {
-        speak('Glasses detected.');
         setProcessingStep('Removing glasses...');
         try {
           const removeResult = await removeGlasses(imageDataUrl);
@@ -241,6 +267,18 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
 
       const faceShape = measureResult?.landmarks?.face_shape ?? measureResult?.face_shape ?? measureResult?.data?.face_shape ?? '';
 
+      // PD like perfect-fit-cam: use API values when present, else compute from client landmarks (same formula as usePDMeasurement)
+      const apiPd = measurements.pd != null && Number(measurements.pd) > 0 ? Number(Number(measurements.pd).toFixed(2)) : undefined;
+      const apiPdLeft = measurements.pd_left != null && Number(measurements.pd_left) > 0 ? Number(Number(measurements.pd_left).toFixed(2)) : undefined;
+      const apiPdRight = measurements.pd_right != null && Number(measurements.pd_right) > 0 ? Number(Number(measurements.pd_right).toFixed(2)) : undefined;
+      const fallbackPd = computePDFromLandmarks(landmarks);
+      const measurementsNormalized = {
+        ...measurements,
+        pd: apiPd ?? fallbackPd?.pd ?? 0,
+        pd_left: apiPdLeft ?? fallbackPd?.pd_left ?? 0,
+        pd_right: apiPdRight ?? fallbackPd?.pd_right ?? 0,
+      };
+
       const passport = await cropToPassportStyle(processedUrl, landmarks);
       const finalImage = passport?.croppedDataUrl ?? processedUrl;
       const cropRect = passport?.cropRect;
@@ -250,7 +288,7 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
         processedImageDataUrl: finalImage,
         glassesDetected,
         landmarks,
-        measurements,
+        measurements: measurementsNormalized,
         faceShape,
         apiResponse: measureResult,
         timestamp: Date.now(),
@@ -289,12 +327,29 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
     else setCurrentStep('3');
   };
 
-  // Auto-capture: no countdown – capture immediately when all checks pass
+  // Auto-capture: same as perfect-fit-cam – only when all checks pass, use that frame’s landmarks (no stale ref)
   useEffect(() => {
-    if (allChecksPassed && !isCapturing && !capturedImageData && !isProcessing && faceValidationState.landmarks) {
-      setIsCapturing(true);
-      captureAndProcess();
+    if (!allChecksPassed || isCapturing || capturedImageData || isProcessing || !faceValidationState.landmarks) {
+      if (allChecksStableTimerRef.current) {
+        clearTimeout(allChecksStableTimerRef.current);
+        allChecksStableTimerRef.current = null;
+      }
+      return;
     }
+    allChecksStableTimerRef.current = setTimeout(() => {
+      allChecksStableTimerRef.current = null;
+      if (!videoRef.current?.videoWidth || isCapturing || capturedImageData || isProcessing) return;
+      const landmarks = lastLandmarksRef.current ?? faceValidationState.landmarks;
+      if (!landmarks) return;
+      setIsCapturing(true);
+      captureAndProcess(landmarks);
+    }, 1000);
+    return () => {
+      if (allChecksStableTimerRef.current) {
+        clearTimeout(allChecksStableTimerRef.current);
+        allChecksStableTimerRef.current = null;
+      }
+    };
   }, [allChecksPassed, isCapturing, capturedImageData, isProcessing, faceValidationState.landmarks, captureAndProcess]);
 
   if (!open) return null;
@@ -336,9 +391,11 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
             <p className="text-gray-800 text-sm text-center mb-8 px-4 font-medium leading-relaxed">
               One click. Perfect measurements.<br />Better-fitting frames.<br />Let's take your picture.
             </p>
-            <div className="flex items-center mb-8">
-              <input type="checkbox" id="privacyPolicyMobile" checked={privacyAgreed} onChange={(e) => setPrivacyAgreed(e.target.checked)} className="mr-3 w-5 h-5 rounded border-gray-400" />
-              <label htmlFor="privacyPolicyMobile" className="text-sm text-gray-800">Agree to <Link to="/privacy" className="font-bold text-gray-900 underline">privacy policy</Link></label>
+            <div className="flex items-start gap-3 mb-8 px-6">
+              <input type="checkbox" id="privacyPolicyMobile" checked={privacyAgreed} onChange={(e) => setPrivacyAgreed(e.target.checked)} className="mt-1 w-5 h-5 rounded border-gray-400 shrink-0" />
+              <label htmlFor="privacyPolicyMobile" className="text-sm text-gray-800 leading-relaxed">
+                Agree to <Link to="/privacy" className="font-bold text-gray-900 underline">privacy policy</Link>, I consent to secure on device image capture and processing.
+              </label>
             </div>
             <button onClick={() => setCurrentStep('2')} disabled={!privacyAgreed} className="bg-gray-800 text-white px-12 py-4 rounded-full font-bold disabled:bg-gray-400 transition-transform active:scale-95 shadow-xl">READY</button>
           </div>
@@ -376,7 +433,7 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
               autoPlay
               playsInline
               muted
-              className="absolute inset-0 w-full h-full object-cover"
+              className="absolute inset-0 w-full h-full object-contain bg-black"
               style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
             />
             <canvas ref={canvasRef} className="hidden" />
@@ -390,6 +447,15 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
                   landmarks={faceValidationState.landmarks}
                   containerSize={containerSize}
                   isMobile={true}
+                  hideEyeLine
+                  debugValues={{
+                    faceWidthPercent: faceValidationState.faceWidthPercent,
+                    leftEyeAR: faceValidationState.leftEyeAR,
+                    rightEyeAR: faceValidationState.rightEyeAR,
+                    headTilt: faceValidationState.headTilt,
+                    headRotation: faceValidationState.headRotation,
+                    brightness: faceValidationState.brightness,
+                  }}
                 />
               )}
             </div>
@@ -426,8 +492,8 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
                   <RotateCcw className="w-6 h-6" />
                 </button>
                 <button
-                  onClick={captureAndProcess}
-                  disabled={!faceValidationState.faceDetected || isProcessing}
+                  onClick={() => captureAndProcess(faceValidationState.landmarks ?? lastLandmarksRef.current)}
+                  disabled={!faceValidationState.faceDetected || isProcessing || !(faceValidationState.landmarks || lastLandmarksRef.current)}
                   className="absolute bottom-4 right-4 bg-primary text-white px-6 py-3 rounded-full font-black text-[10px] tracking-widest shadow-2xl z-30 disabled:bg-gray-600 border border-white/20 uppercase italic"
                 >
                   <Camera className="w-4 h-4 inline mr-1" /> Snap
@@ -473,15 +539,15 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
             </div>
             */}
             
-            <Tabs defaultValue="frames" className="w-full flex-1 flex flex-col overflow-hidden">
+            <Tabs value={step4Tab} onValueChange={(v) => setStep4Tab(v as 'measurements' | 'frames')} className="w-full flex-1 flex flex-col overflow-hidden">
               <TabsList className="grid grid-cols-2 h-10 bg-gray-200/50 p-1 rounded-xl mb-4">
+                <TabsTrigger value="measurements" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold text-[9px] uppercase tracking-widest">Perfect MFit</TabsTrigger>
                 <TabsTrigger value="frames" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold text-[9px] uppercase tracking-widest">Try-On</TabsTrigger>
-                <TabsTrigger value="measurements" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold text-[9px] uppercase tracking-widest">Units</TabsTrigger>
               </TabsList>
 
               <div className="flex-1 overflow-y-auto min-h-0 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-                <TabsContent value="frames" className="mt-0 focus-visible:outline-none"><FramesTab /></TabsContent>
-                <TabsContent value="measurements" className="mt-0 focus-visible:outline-none"><MeasurementsTab /></TabsContent>
+                <TabsContent value="measurements" className="mt-0 focus-visible:outline-none"><MeasurementsTab onViewMeasurements={() => setStep4Tab('frames')} previewWidth={280} previewHeight={231} compactLayout /></TabsContent>
+                <TabsContent value="frames" className="mt-0 focus-visible:outline-none"><FramesTab measurementsOnly onBackToMeasurements={() => setStep4Tab('measurements')} /></TabsContent>
               </div>
             </Tabs>
           </div>

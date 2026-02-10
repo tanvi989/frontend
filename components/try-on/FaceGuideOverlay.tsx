@@ -21,6 +21,8 @@ interface FaceGuideOverlayProps {
   landmarks?: FaceLandmarks | null;
   containerSize?: { width: number; height: number };
   isMobile?: boolean;
+  /** When true, hide blue eye line and eye reticles (match perfect-fit-cam simple overlay). */
+  hideEyeLine?: boolean;
 }
 
 /**
@@ -36,11 +38,12 @@ export function FaceGuideOverlay({
   landmarks,
   containerSize,
   isMobile = false,
+  hideEyeLine = false,
 }: FaceGuideOverlayProps) {
   return (
     <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden">
-      {/* Virtual Lines / Face Contour – exact same as perfect-fit-cam */}
-      {faceDetected && landmarks && containerSize && containerSize.width > 0 && containerSize.height > 0 && (
+      {/* Virtual Lines / Face Contour – hidden when hideEyeLine (match perfect-fit-cam mobile) */}
+      {!hideEyeLine && faceDetected && landmarks && containerSize && containerSize.width > 0 && containerSize.height > 0 && (
         <svg
           className="absolute inset-0 w-full h-full pointer-events-none z-20 face-guide-svg"
           viewBox={`0 0 ${containerSize.width} ${containerSize.height}`}

@@ -298,6 +298,15 @@ export function useFaceDetection({ videoRef, canvasRef, isActive }: UseFaceDetec
           : 'Keep eyes open',
         severity: state.leftEyeOpen && state.rightEyeOpen ? 'pass' : 'fail',
       },
+      {
+        id: 'pupils-visible',
+        label: 'Eyes Aligned',
+        passed: state.pupilsDetected === true,
+        message: state.pupilsDetected
+          ? 'Eyes aligned'
+          : 'Look at camera – eyes must be visible for measurement',
+        severity: state.pupilsDetected ? 'pass' : 'fail',
+      },
     ];
 
     return checks;
