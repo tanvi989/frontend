@@ -11,7 +11,7 @@ const store = {
 const error = (message: string) => ({ type: 'ERROR', payload: message });
 const success = (message: string) => ({ type: 'SUCCESS', payload: message });
 
-// Backend URL: https://finalbackend.multifolks.com
+// Backend URL: use VITE_API_TARGET / VITE_API_URL from .env; default production backend
 export const API_BASE_URL = "https://finalbackend.multifolks.com";
 
 const env = (import.meta as any)?.env ?? {};

@@ -13,7 +13,9 @@ import {
     updateMyPrescriptionCartId,
     deletePrescription,
     removePrescription,
-    getCartItemId
+    getCartItemId,
+    addToCart,
+    addPrescription
 } from "../../api/retailerApis";
 import { CartItem } from "../../types";
 import Loader from "../Loader";
@@ -22,12 +24,14 @@ import { LoginModal } from "../LoginModal";
 import SignUpModal from "../SignUpModal";
 import ManualPrescriptionModal from "../ManualPrescriptionModal";
 import { getLensCoating, getTintInfo, calculateCartSubtotal, calculateItemTotal, getLensPackagePrice, getCartLensOverride, getLensTypeDisplay, getLensIndex } from "../../utils/priceUtils";
+import { getProductFlow } from "../../utils/productFlowStorage";
 import { trackBeginCheckout } from "../../utils/analytics";
 
 const DesktopCart: React.FC = () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [deleteDialog, setDeleteDialog] = useState(false);
+    const [isAddingDuplicate, setIsAddingDuplicate] = useState(false);
     const [selectedCartId, setSelectedCartId] = useState<number | null>(null);
     const pendingDeleteCartIdRef = useRef<number | null>(null);
     const [couponCode, setCouponCode] = useState("");
@@ -36,6 +40,7 @@ const DesktopCart: React.FC = () => {
 
     // Prescription Modal State
     const [viewPrescription, setViewPrescription] = useState<any>(null);
+    const [viewPrescriptionCartId, setViewPrescriptionCartId] = useState<number | null>(null);
     const [prescriptionRefresh, setPrescriptionRefresh] = useState(0);
     // State to track which cart items are in edit mode
     const [editingPrescriptions, setEditingPrescriptions] = useState<Set<number>>(new Set());
@@ -55,6 +60,8 @@ const DesktopCart: React.FC = () => {
         firstName: localStorage.getItem("firstName") || "User",
     });
     const cartUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const hasAutoAppliedCouponRef = useRef(false);
+    const isAutoApplyingCouponRef = useRef(false);
 
     // Handle initial mount - show loader immediately
     useEffect(() => {
@@ -298,16 +305,32 @@ const DesktopCart: React.FC = () => {
     // Coupon Mutations
     const { mutate: applyCouponMutation } = useMutation({
         mutationFn: applyCoupon,
+        onMutate: async (code: string) => {
+            if ((code || "").trim().toUpperCase() !== "LAUNCH50") return;
+            await queryClient.cancelQueries({ queryKey: ["cart"] });
+            const previous = queryClient.getQueryData(["cart"]);
+            queryClient.setQueryData(["cart"], (old: any) => {
+                if (!old || !old.cart) return old;
+                return { ...old, coupon: { code: "LAUNCH50" } };
+            });
+            return { previous };
+        },
         onSuccess: (res: any) => {
             if (res.data.success) {
                 refetch();
                 setCouponCode("");
-                alert("Coupon applied successfully!");
+                if (!isAutoApplyingCouponRef.current) {
+                    alert("Coupon applied successfully!");
+                }
+                isAutoApplyingCouponRef.current = false;
             } else {
+                isAutoApplyingCouponRef.current = false;
                 alert(res.data.message || "Failed to apply coupon");
             }
         },
-        onError: (err: any) => {
+        onError: (err: any, _code, context: any) => {
+            isAutoApplyingCouponRef.current = false;
+            if (context?.previous) queryClient.setQueryData(["cart"], context.previous);
             alert(err.response?.data?.detail || "Failed to apply coupon");
         },
     });
@@ -370,9 +393,21 @@ const DesktopCart: React.FC = () => {
 
     const handleApplyCoupon = () => {
         if (couponCode.trim()) {
-            applyCouponMutation(couponCode);
+            applyCouponMutation(couponCode.trim().toUpperCase());
         }
     };
+
+    // Auto-apply default coupon LAUNCH50 when cart has items and no coupon (default applied for all users)
+    useEffect(() => {
+        if (hasAutoAppliedCouponRef.current) return;
+        const hasItems = Array.isArray(cartItems) && cartItems.length > 0;
+        const noCoupon = !cartData?.coupon;
+        if (hasItems && noCoupon) {
+            hasAutoAppliedCouponRef.current = true;
+            isAutoApplyingCouponRef.current = true;
+            applyCouponMutation("LAUNCH50");
+        }
+    }, [cartItems?.length, cartData?.coupon]);
 
     const handleRemoveCoupon = () => {
         removeCouponMutation();
@@ -464,32 +499,81 @@ const DesktopCart: React.FC = () => {
 
     // Handle adding duplicate product instead of increasing quantity
     const handleAddDuplicateProduct = async (item: CartItem) => {
+        // Prevent multiple simultaneous calls
+        if (isAddingDuplicate) {
+            console.log("⏳ Already adding duplicate, please wait...");
+            return;
+        }
+
         try {
-            // You'll need to implement an API call to add the same product to cart
-            // This is a placeholder - you'll need to replace with your actual API call
-            const productData = {
-                product_id: item.product?.products?.skuid || item.product_id,
-                quantity: 1,
-                // Include any other necessary product data
-                lens_type: item.lens?.type,
-                lens_index: item.lens?.index,
-                // Fixed: Use type assertion to access coating property
-                coating: getCoatingFromItem(item)?.type,
+            setIsAddingDuplicate(true);
+            const product = item.product?.products || item.product;
+            if (!product) {
+                console.error("Cannot duplicate: product data missing");
+                setIsAddingDuplicate(false);
+                return;
+            }
+
+            // Extract lens data
+            const lensOverride = getCartLensOverride(item.cart_id);
+            const lensPackagePrice = getLensPackagePrice(item);
+            const coatingInfo = getLensCoating(item);
+            const tintInfo = getTintInfo(item);
+
+            // Extract prescription if available
+            let prescriptionData = null;
+            if (item.prescription) {
+                prescriptionData = item.prescription;
+            } else {
+                // Try to find prescription from localStorage/sessionStorage
+                const savedPrescriptions = JSON.parse(localStorage.getItem('prescriptions') || '[]');
+                const sessionPrescriptions = JSON.parse(sessionStorage.getItem('productPrescriptions') || '{}');
+                
+                const productSku = product.skuid || product.id;
+                const cartPrescription = savedPrescriptions.find((p: any) => 
+                    p?.associatedProduct?.cartId === String(item.cart_id) ||
+                    p?.associatedProduct?.productSku === productSku
+                ) || sessionPrescriptions[productSku];
+                
+                if (cartPrescription) {
+                    prescriptionData = cartPrescription.prescriptionDetails || cartPrescription.data || cartPrescription;
+                }
+            }
+
+            // Prepare options for addToCart
+            const options: any = {
+                lensPackagePrice: lensPackagePrice,
+                coatingPrice: coatingInfo?.price || 0,
+                lensPackage: lensOverride?.lensPackage || item.lens?.lens_package,
+                coatingTitle: coatingInfo?.title || item.lens?.coating,
             };
 
-            // Call your API to add product to cart
-            // await addToCart(productData);
+            // Add lens category if available
+            if (lensOverride?.lensCategory || item.lens?.lens_category) {
+                options.lensCategory = lensOverride?.lensCategory || item.lens?.lens_category;
+            }
+
+            // Add tint info if sunglasses
+            if (tintInfo) {
+                options.tintType = tintInfo.type;
+                options.tintColor = tintInfo.color;
+            }
+
+            // Call addToCart with all the product data
+            const response = await addToCart(product, "instant", prescriptionData, options);
             
-            // For now, we'll just show an alert and refresh
-            alert("Adding duplicate product to cart...");
-            
-            // Refresh cart to show new item
-            refetch();
-            
-            console.log("🛒 Added duplicate product to cart:", productData);
+            if (response?.data?.status || response?.data?.success) {
+                // Refresh cart to show new item
+                refetch();
+                console.log("✅ Added duplicate product to cart successfully");
+            } else {
+                throw new Error("Failed to add duplicate product");
+            }
         } catch (error) {
             console.error("Error adding duplicate product:", error);
             alert("Failed to add duplicate product. Please try again.");
+        } finally {
+            setIsAddingDuplicate(false);
         }
     };
 
@@ -612,13 +696,55 @@ const DesktopCart: React.FC = () => {
             console.log(`🔍 [getPrescriptionByCartId] Checking for cartId: ${cartId}, productSku: ${productSku}`);
             console.log(`🔍 [getPrescriptionByCartId] Cart item prescription:`, cartItem?.prescription);
             
-            // Check if cart item already has prescription linked
-            if (cartItem?.prescription) {
-                console.log('✅ Found prescription on cart item:', cartItem.prescription);
-                return cartItem.prescription;
+            // Get list of active cart IDs to filter out old order prescriptions
+            const activeCartIds = new Set(cartItems.map(ci => String(ci.cart_id)));
+            
+            // 1) Check localStorage FIRST so take-photo / just-uploaded prescription wins over old API ones
+            try {
+                const localPrescriptions = JSON.parse(localStorage.getItem('prescriptions') || '[]');
+                const localMatches = localPrescriptions.filter((p: any) => {
+                    const pCartId = p?.associatedProduct?.cartId ?? p?.data?.associatedProduct?.cartId ?? p?.prescriptionDetails?.associatedProduct?.cartId;
+                    const matchesCartId = pCartId != null && String(pCartId) === String(cartId);
+                    return matchesCartId && activeCartIds.has(String(pCartId));
+                });
+                if (localMatches.length > 0) {
+                    const getLocalDate = (p: any) => {
+                        const raw = p?.createdAt ?? p?.created_at ?? p?.prescriptionDetails?.createdAt ?? 0;
+                        if (typeof raw === 'number') return raw;
+                        if (typeof raw === 'string') return new Date(raw).getTime() || 0;
+                        return 0;
+                    };
+                    const localPrescription = localMatches.sort((a: any, b: any) => getLocalDate(b) - getLocalDate(a))[0];
+                    console.log('✅ [getPrescriptionByCartId] Using prescription from localStorage (take-photo/recent upload)');
+                    return localPrescription;
+                }
+            } catch (e) {
+                console.error("❌ [getPrescriptionByCartId] Error checking localStorage:", e);
             }
 
-            // Check user prescriptions from database
+            // 2) Session storage for product (from product page flow)
+            try {
+                if (productSku) {
+                    const sessionPrescriptions = JSON.parse(sessionStorage.getItem('productPrescriptions') || '{}');
+                    const productPrescription = sessionPrescriptions[productSku];
+                    if (productPrescription) {
+                        const pCartId = productPrescription?.associatedProduct?.cartId ?? productPrescription?.data?.associatedProduct?.cartId;
+                        if (pCartId == null || (String(pCartId) === String(cartId) && activeCartIds.has(String(pCartId)))) {
+                            if (productPrescription.associatedProduct) {
+                                productPrescription.associatedProduct.cartId = String(cartId);
+                                sessionPrescriptions[productSku] = productPrescription;
+                                sessionStorage.setItem('productPrescriptions', JSON.stringify(sessionPrescriptions));
+                            }
+                            console.log('✅ [getPrescriptionByCartId] Using prescription from sessionStorage');
+                            return productPrescription;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("❌ [getPrescriptionByCartId] Error checking sessionStorage:", e);
+            }
+
+            // 3) User prescriptions from database (only when explicitly linked to this cartId)
             if (userPrescriptions && userPrescriptions.length > 0) {
                 console.log(`🔍 [getPrescriptionByCartId] Checking ${userPrescriptions.length} user prescriptions...`);
                 
@@ -636,6 +762,7 @@ const DesktopCart: React.FC = () => {
                 };
 
                 // ✅ Match by cartId, then pick LATEST (most recently created/updated)
+                // IMPORTANT: Only match prescriptions for cart items that are currently in the active cart
                 let matches = userPrescriptions.filter((p: any) => {
                     if (!p) return false;
                     const dataCartId = p?.data?.associatedProduct?.cartId;
@@ -643,27 +770,28 @@ const DesktopCart: React.FC = () => {
                     const directCartId = p?.data?.cartId || p?.cartId;
                     const rootAssociatedCartId = p?.associatedProduct?.cartId;
                     const deepDataCartId = p?.data?.data?.associatedProduct?.cartId;
-                    return (dataCartId && String(dataCartId) === String(cartId)) ||
+                    
+                    // Check if prescription matches the current cartId
+                    const matchesCartId = (dataCartId && String(dataCartId) === String(cartId)) ||
                            (rootCartId && String(rootCartId) === String(cartId)) ||
                            (directCartId && String(directCartId) === String(cartId)) ||
                            (rootAssociatedCartId && String(rootAssociatedCartId) === String(cartId)) ||
                            (deepDataCartId && String(deepDataCartId) === String(cartId));
+                    
+                    if (!matchesCartId) return false;
+                    
+                    // Only return true if the cartId is in the active cart (not from old order)
+                    const prescriptionCartId = rootCartId || dataCartId || directCartId || rootAssociatedCartId || deepDataCartId;
+                    if (prescriptionCartId && activeCartIds.has(String(prescriptionCartId))) {
+                        return true;
+                    } else {
+                        console.log(`⚠️ Prescription matches cartId ${cartId} but cartId is NOT in active cart (old order)`);
+                        return false;
+                    }
                 });
 
-                // Fallback: match by productSku if no cartId match (normalize to string for comparison)
-                if (matches.length === 0 && productSku != null && productSku !== "") {
-                    const productSkuStr = String(productSku);
-                    console.log(`🔍 [getPrescriptionByCartId] Trying productSku fallback: ${productSkuStr}`);
-                    matches = userPrescriptions.filter((p: any) => {
-                        if (!p) return false;
-                        const dataSku = p?.data?.associatedProduct?.productSku;
-                        const rootSku = p?.associatedProduct?.productSku;
-                        const deepDataSku = p?.data?.data?.associatedProduct?.productSku;
-                        return (dataSku && String(dataSku) === productSkuStr) ||
-                               (rootSku && String(rootSku) === productSkuStr) ||
-                               (deepDataSku && String(deepDataSku) === productSkuStr);
-                    });
-                }
+                // Do NOT match by productSku alone from API - that shows old account prescriptions.
+                // Only use API prescriptions that are explicitly linked to this cart (cartId match above).
 
                 // Prefer camera (photo) over upload when both match, then LATEST by date
                 const prescription = matches.length > 0
@@ -685,49 +813,16 @@ const DesktopCart: React.FC = () => {
                 console.log(`⚠️ [getPrescriptionByCartId] No user prescriptions available (count: ${userPrescriptions?.length || 0})`);
             }
 
-            // Also check localStorage as fallback (use latest by date if multiple)
-            try {
-                const localPrescriptions = JSON.parse(localStorage.getItem('prescriptions') || '[]');
-                console.log(`🔍 [getPrescriptionByCartId] Checking ${localPrescriptions.length} localStorage prescriptions...`);
-                const localMatches = localPrescriptions.filter((p: any) => {
-                    const pCartId = p?.associatedProduct?.cartId;
-                    return pCartId && String(pCartId) === String(cartId);
-                });
-                if (localMatches.length > 0) {
-                    const getLocalDate = (p: any) => {
-                        const raw = p?.createdAt ?? p?.created_at ?? p?.prescriptionDetails?.createdAt ?? 0;
-                        if (typeof raw === 'number') return raw;
-                        if (typeof raw === 'string') return new Date(raw).getTime() || 0;
-                        return 0;
-                    };
-                    const localPrescription = localMatches.sort((a: any, b: any) => getLocalDate(b) - getLocalDate(a))[0];
-                    console.log('✅ [getPrescriptionByCartId] Returning latest localStorage prescription');
-                    return localPrescription;
+            // 4) Fallback: use prescription stored on cart item
+            if (cartItem?.prescription) {
+                const presCartId = cartItem.prescription?.associatedProduct?.cartId ||
+                    cartItem.prescription?.data?.associatedProduct?.cartId ||
+                    cartItem.prescription?.cartId ||
+                    cartItem.prescription?.data?.cartId;
+                if (presCartId && String(presCartId) === String(cartId) && activeCartIds.has(String(presCartId))) {
+                    console.log('✅ [getPrescriptionByCartId] Using prescription from cart item (fallback)');
+                    return cartItem.prescription;
                 }
-            } catch (e) {
-                console.error("❌ [getPrescriptionByCartId] Error checking localStorage prescriptions:", e);
-            }
-
-            // Check session storage for product-based prescriptions (from product pages)
-            try {
-                if (productSku) {
-                    const sessionPrescriptions = JSON.parse(sessionStorage.getItem('productPrescriptions') || '{}');
-                    const productPrescription = sessionPrescriptions[productSku];
-                    if (productPrescription) {
-                        console.log('✅ [getPrescriptionByCartId] Found prescription in sessionStorage for product SKU:', productSku);
-                        // Link it to this cart item
-                        if (productPrescription.associatedProduct) {
-                            productPrescription.associatedProduct.cartId = String(cartId);
-                            // Update session storage with cartId
-                            sessionPrescriptions[productSku] = productPrescription;
-                            sessionStorage.setItem('productPrescriptions', JSON.stringify(sessionPrescriptions));
-                            console.log('✅ [getPrescriptionByCartId] Linked prescription to cartId:', cartId);
-                        }
-                        return productPrescription;
-                    }
-                }
-            } catch (e) {
-                console.error("❌ [getPrescriptionByCartId] Error checking sessionStorage prescriptions:", e);
             }
 
             console.log(`❌ [getPrescriptionByCartId] No prescription found for cartId: ${cartId}`);
@@ -824,20 +919,24 @@ const DesktopCart: React.FC = () => {
             full_item: itemAny
         });
 
-        // Extract prescription tier from main_category
+        // Extract prescription tier from main_category (and override.lensType for single vision)
         let tier = "";
-        const mainCategoryLower = mainCategory.toLowerCase();
-        if (mainCategoryLower.includes("premium progressive")) {
+        const mainCategoryLower = (mainCategory || "").toLowerCase();
+        if (override?.lensType === "single" || mainCategoryLower.includes("single vision")) {
+            tier = "Single Vision";
+        } else if (mainCategoryLower.includes("premium progressive")) {
             tier = "Premium Progressive";
         } else if (mainCategoryLower.includes("standard progressive")) {
             tier = "Standard Progressive";
         } else if (mainCategoryLower.includes("bifocal")) {
             tier = "Bifocal";
+        } else if (mainCategoryLower.includes("advanced progressive")) {
+            tier = "Advanced Progressive";
+        } else if (mainCategoryLower.includes("precision progressive")) {
+            tier = "Precision Progressive";
         } else if (mainCategoryLower.includes("progressive")) {
-            // Generic progressive if not specified
             tier = "Progressive";
         } else {
-            // Fallback to main_category if it doesn't match known patterns
             tier = mainCategory || "Progressive";
         }
 
@@ -1077,88 +1176,48 @@ const DesktopCart: React.FC = () => {
                                                     </div>
                                                 </div>
 
-                                                {/* Details Table */}
-                                                <div className="flex-1">
-                                                    <div className="border border-gray-200 text-sm">
-                                                        {/* Prescription For */}
-
-                                                        {/* Frame Price */}
-                                                        <div className="flex border-b border-gray-200">
-                                                            <div className="w-1/3 p-3 font-bold text-[#1F1F1F] border-r border-gray-200">
-                                                                Frame Price:
-                                                            </div>
-                                                            <div className="w-2/3 p-3 text-right font-bold text-[#1F1F1F]">
-                                                                £{Number(item.product?.products?.list_price || item.product_details?.price || 0).toFixed(2)}
-                                                            </div>
-                                                        </div>
-                                                        {/* Frame Size */}
-                                                        <div className="flex border-b border-gray-200">
-                                                            <div className="w-1/3 p-3 font-bold text-[#1F1F1F] border-r border-gray-200">
-                                                                Frame Size:
-                                                            </div>
-                                                            <div className="w-2/3 p-3 text-[#525252]">
-                                                                {formatFrameSize(item.product?.products?.size)}
-                                                            </div>
-                                                        </div>
-                                                        {/* Lens Type */}
-                                                        <div className="flex border-b border-gray-200">
-                                                            <div className="w-1/3 p-3 font-bold text-[#1F1F1F] border-r border-gray-200">
-                                                                Lens Type:
-                                                            </div>
-                                                            <div className="w-2/3 p-3 text-[#525252]">
-                                                                {getLensTypeDisplay(item)}
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Lens Index - Always show */}
-                                                        <div className="flex border-b border-gray-200">
-                                                            <div className="w-1/3 p-3 font-bold text-[#1F1F1F] border-r border-gray-200">
-                                                                Lens Index:
-                                                            </div>
-                                                            <div className="w-2/3 flex justify-between p-3">
-                                                                <span className="text-[#525252]">
-                                                                    {getLensIndex(item).index}
-                                                                </span>
-                                                                <span className="font-bold text-[#1F1F1F]">
-                                                                    £{getLensIndex(item).price.toFixed(2)}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Conditionally show Lens Tint (for sunglasses) or Lens Coating (for regular glasses) */}
-                                                        {getTintInfo(item) ? (
-                                                            /* Sunglasses - Show Lens Tint */
-                                                            <div className="flex">
-                                                                <div className="w-1/3 p-3 font-bold text-[#1F1F1F] border-r border-gray-200">
-                                                                    Lens Tint:
-                                                                </div>
-                                                                <div className="w-2/3 flex justify-between p-3">
-                                                                    <span className="text-[#525252]">
-                                                                        {getTintInfo(item)!.type}
-                                                                        {getTintInfo(item)!.color && `-${getTintInfo(item)!.color}`}
-                                                                    </span>
-                                                                    <span className="font-bold text-[#1F1F1F]">
-                                                                        £{Number(getTintInfo(item)!.price).toFixed(2)}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                        ) : (
-                                                            /* Regular Glasses - Show Lens Coating */
-                                                            <div className="flex">
-                                                                <div className="w-1/3 p-3 font-bold text-[#1F1F1F] border-r border-gray-200">
-                                                                    Lens Coating:
-                                                                </div>
-                                                                <div className="w-2/3 flex justify-between p-3">
-                                                                    <span className="text-[#525252]">
-                                                                        {getLensCoating(item).name}
-                                                                    </span>
-                                                                    <span className="font-bold text-[#1F1F1F]">
-                                                                        £{Number(getLensCoating(item).price || 0).toFixed(2)}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                                {/* Details Table - table format; price column has min-width so it stays visible */}
+                                                <div className="flex-1 min-w-0">
+                                                    <table className="w-full border border-gray-200 text-sm border-collapse" style={{ tableLayout: "fixed" }}>
+                                                        <colgroup>
+                                                            <col style={{ width: "36%" }} />
+                                                            <col style={{ width: "auto" }} />
+                                                            <col style={{ width: "5.5rem", minWidth: "5.5rem" }} />
+                                                        </colgroup>
+                                                        <tbody>
+                                                            <tr className="border-b border-gray-200">
+                                                                <td className="p-3 font-bold text-[#1F1F1F] border-r border-gray-200">Frame Price:</td>
+                                                                <td className="p-3 text-[#525252]"></td>
+                                                                <td className="p-3 text-right font-bold text-[#1F1F1F] whitespace-nowrap bg-gray-50 rounded-[1px]">£{Number(item.product?.products?.list_price || item.product_details?.price || 0).toFixed(2)}</td>
+                                                            </tr>
+                                                            <tr className="border-b border-gray-200">
+                                                                <td className="p-3 font-bold text-[#1F1F1F] border-r border-gray-200">Frame Size:</td>
+                                                                <td className="p-3 text-[#525252]" colSpan={2}>{formatFrameSize(item.product?.products?.size)}</td>
+                                                            </tr>
+                                                            <tr className="border-b border-gray-200">
+                                                                <td className="p-3 font-bold text-[#1F1F1F] border-r border-gray-200">Lens Type:</td>
+                                                                <td className="p-3 text-[#525252]" colSpan={2}>{getLensTypeDisplay(item)}</td>
+                                                            </tr>
+                                                            <tr className="border-b border-gray-200">
+                                                                <td className="p-3 font-bold text-[#1F1F1F] border-r border-gray-200">Lens Index:</td>
+                                                                <td className="p-3 text-[#525252] truncate">{getLensIndex(item).index}</td>
+                                                                <td className="p-3 text-right font-bold text-[#1F1F1F] whitespace-nowrap bg-gray-50 rounded-[1px]">£{getLensIndex(item).price.toFixed(2)}</td>
+                                                            </tr>
+                                                            {getTintInfo(item) ? (
+                                                                <tr>
+                                                                    <td className="p-3 font-bold text-[#1F1F1F] border-r border-gray-200">Lens Tint:</td>
+                                                                    <td className="p-3 text-[#525252] truncate">{getTintInfo(item)!.type}{getTintInfo(item)!.color ? `-${getTintInfo(item)!.color}` : ""}</td>
+                                                                    <td className="p-3 text-right font-bold text-[#1F1F1F] whitespace-nowrap bg-gray-50 rounded-[1px]">£{Number(getTintInfo(item)!.price).toFixed(2)}</td>
+                                                                </tr>
+                                                            ) : (
+                                                                <tr>
+                                                                    <td className="p-3 font-bold text-[#1F1F1F] border-r border-gray-200">Lens Coating:</td>
+                                                                    <td className="p-3 text-[#525252] truncate">{getLensCoating(item).name}</td>
+                                                                    <td className="p-3 text-right font-bold text-[#1F1F1F] whitespace-nowrap bg-gray-50 rounded-[1px]">£{Number(getLensCoating(item).price || 0).toFixed(2)}</td>
+                                                                </tr>
+                                                            )}
+                                                        </tbody>
+                                                    </table>
 
                                                     {/* Two-column layout: Prescription button + Free text on left, Qty + Total on right */}
                                                     <div className="mt-4 flex flex-col md:flex-row items-start justify-between gap-4">
@@ -1177,8 +1236,20 @@ const DesktopCart: React.FC = () => {
                                                                             <div className="flex items-center gap-2">
                                                                                 <button
                                                                                     onClick={() => {
-                                                                                        console.log('📋 Opening prescription modal with data:', prescription);
-                                                                                        setViewPrescription(prescription);
+                                                                                        const flow = getProductFlow(productSku || "");
+                                                                                        const hasFlowPd = flow && (flow.pdSingle || flow.pdRight || flow.pdLeft);
+                                                                                        const base = prescription?.prescriptionDetails || prescription?.data || {};
+                                                                                        const merged = hasFlowPd ? {
+                                                                                            ...prescription,
+                                                                                            pdSingle: prescription?.pdSingle ?? base?.pdSingle ?? flow?.pdSingle,
+                                                                                            pdRight: prescription?.pdRight ?? base?.pdRight ?? flow?.pdRight,
+                                                                                            pdLeft: prescription?.pdLeft ?? base?.pdLeft ?? flow?.pdLeft,
+                                                                                            pdType: prescription?.pdType ?? base?.pdType ?? flow?.pdType,
+                                                                                            prescriptionDetails: { ...base, pdSingle: base?.pdSingle ?? flow?.pdSingle, pdRight: base?.pdRight ?? flow?.pdRight, pdLeft: base?.pdLeft ?? flow?.pdLeft, pdType: base?.pdType ?? flow?.pdType },
+                                                                                            data: { ...(prescription?.data || {}), ...base, pdSingle: base?.pdSingle ?? flow?.pdSingle, pdRight: base?.pdRight ?? flow?.pdRight, pdLeft: base?.pdLeft ?? flow?.pdLeft, pdType: base?.pdType ?? flow?.pdType },
+                                                                                        } : prescription;
+                                                                                        setViewPrescription(merged);
+                                                                                        setViewPrescriptionCartId(item.cart_id);
                                                                                     }}
                                                                                     className="bg-[#E94D37] hover:bg-[#bf3e2b] text-white font-bold text-sm px-4 py-2 rounded-md transition-colors"
                                                                                 >
@@ -1309,14 +1380,15 @@ const DesktopCart: React.FC = () => {
                                                                         {item.quantity || 1}
                                                                     </span>
                                                                     <button
-                                                                        disabled={isQuantityUpdating}
-                                                                        onClick={() =>
+                                                                        disabled={isQuantityUpdating || isAddingDuplicate}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
                                                                             handleQuantityChangeCustom(
                                                                                 item.cart_id,
                                                                                 item.quantity || 1,
                                                                                 1
-                                                                            )
-                                                                        }
+                                                                            );
+                                                                        }}
                                                                         className="px-3 py-1 hover:bg-gray-50 text-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
                                                                         title="Add duplicate product"
                                                                     >
@@ -1629,8 +1701,28 @@ const DesktopCart: React.FC = () => {
             {/* Manual Prescription Modal - Removed onRemove prop */}
             <ManualPrescriptionModal
                 open={!!viewPrescription}
-                onClose={() => setViewPrescription(null)}
+                onClose={() => { setViewPrescription(null); setViewPrescriptionCartId(null); }}
                 prescription={viewPrescription}
+                cartId={viewPrescriptionCartId ?? undefined}
+                onSavePD={viewPrescriptionCartId != null && viewPrescription ? async (pd) => {
+                    const userStr = localStorage.getItem("user");
+                    const user = userStr ? JSON.parse(userStr) : null;
+                    const userId = user?._id ?? user?.id ?? "";
+                    const base = viewPrescription.prescriptionDetails || viewPrescription.data || viewPrescription;
+                    const baseObj = typeof base === "object" && base ? base : {};
+                    const updated = {
+                        ...viewPrescription,
+                        ...baseObj,
+                        ...pd,
+                        prescriptionDetails: { ...baseObj, ...pd },
+                        data: { ...baseObj, ...pd },
+                    };
+                    await addPrescription(userId, viewPrescription.type || "upload", viewPrescription.type || "upload", updated, viewPrescriptionCartId);
+                    refetch();
+                    refetchPrescriptions();
+                    setPrescriptionRefresh((p) => p + 1);
+                    setViewPrescription(updated);
+                } : undefined}
             />
 
             {/* Auth Modals */}

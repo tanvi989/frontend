@@ -11,6 +11,7 @@ import { Ruler, Glasses, Loader2, RotateCcw, Volume2, X, Camera, Download, Exter
 import { useFaceDetection } from '@/hooks/useFaceDetection';
 import { useVoiceGuidance } from '@/hooks/useVoiceGuidance';
 import { FaceGuideOverlay } from '@/components/try-on/FaceGuideOverlay';
+import { getCaptureSession } from '@/utils/captureSession';
 import { toast } from 'sonner';
 
 interface GetMyFitPopupProps {
@@ -18,11 +19,13 @@ interface GetMyFitPopupProps {
   onClose: () => void;
   /** When provided, open directly at this step (e.g. '4' when restoring from session). */
   initialStep?: Step;
+  /** When provided, auto-fill PD and close without showing result page (extra feature, doesn't affect normal VTO flow) */
+  onPDCaptured?: (pdData: { pdSingle?: number; pdRight?: number; pdLeft?: number }) => void;
 }
 
 type Step = '1' | '2' | '3' | '4';
 
-const GetMyFitPopup: React.FC<GetMyFitPopupProps> = ({ open, onClose, initialStep }) => {
+const GetMyFitPopup: React.FC<GetMyFitPopupProps> = ({ open, onClose, initialStep, onPDCaptured }) => {
   const { capturedData, setCapturedData } = useCaptureData();
   const navigate = useNavigate();
   const [isMobile, setIsMobile] = useState(false);
@@ -253,12 +256,29 @@ const GetMyFitPopup: React.FC<GetMyFitPopupProps> = ({ open, onClose, initialSte
       const finalImage = passport?.croppedDataUrl ?? processedUrl;
       const cropRect = passport?.cropRect;
 
+      const measurements = measureResult.landmarks.mm;
+      
+      // EXTRA FEATURE: If onPDCaptured callback provided, auto-fill PD and close (skip result page)
+      if (onPDCaptured && measurements) {
+        const pdSingle = measurements.pd ? Number(measurements.pd.toFixed(2)) : undefined;
+        const pdRight = measurements.pd_right ? Number(measurements.pd_right.toFixed(2)) : undefined;
+        const pdLeft = measurements.pd_left ? Number(measurements.pd_left.toFixed(2)) : undefined;
+        
+        // Only call callback if we have PD data
+        if (pdSingle != null || (pdRight != null && pdLeft != null)) {
+          setIsProcessing(false);
+          onPDCaptured({ pdSingle, pdRight, pdLeft });
+          onClose(); // Close popup without showing step 4
+          return;
+        }
+      }
+
       setCapturedData({
         imageDataUrl: originalUrl,
         processedImageDataUrl: finalImage,
         glassesDetected,
         landmarks,
-        measurements: measureResult.landmarks.mm,
+        measurements: measurements,
         faceShape: measureResult.landmarks.face_shape,
         apiResponse: measureResult,
         timestamp: Date.now(),

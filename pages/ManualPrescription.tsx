@@ -106,6 +106,36 @@ function normalizePd(v: string | number | undefined): string {
   return n.toFixed(2);
 }
 
+// Function to round PD to nearest dropdown option
+// Special handling: if PD is 60.50, choose 61.00; if less than 60.5 (but >= 60), choose 60.00
+function roundPdToDropdownOption(value: number, options: string[]): string {
+  if (isNaN(value) || value <= 0) return "";
+  
+  const numValue = Number(value);
+  
+  // Special handling for values around 60-61
+  if (numValue >= 60 && numValue < 60.5) {
+    return "60.00";
+  }
+  if (numValue === 60.5 || (numValue > 60.5 && numValue <= 61)) {
+    return "61.00";
+  }
+  
+  // Otherwise, find the nearest option
+  let closest = options[0];
+  let minDiff = Math.abs(numValue - parseFloat(closest));
+  
+  for (const option of options) {
+    const diff = Math.abs(numValue - parseFloat(option));
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = option;
+    }
+  }
+  
+  return closest;
+}
+
 const ManualPrescription: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { state: locationState } = useLocation();
@@ -680,103 +710,6 @@ const ManualPrescription: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Pupillary Distance (PD) - Dual: Right / Left so manual + PD works like upload flow */}
-                  <div>
-                    <div className="flex items-center mb-3">
-                      <h3 className="text-[#1F1F1F] font-bold text-base">
-                        Pupillary Distance (PD)
-                      </h3>
-                      <HelpButton onClick={() => openHelp("Pupillary Distance")} />
-                    </div>
-                    <p className="text-sm text-[#525252] mb-3">Dual (both eyes)</p>
-                    <div className="flex flex-col gap-4 mb-4">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="pdPreference"
-                          value="know"
-                          checked={formik.values.pdPreference === "know"}
-                          onChange={() => formik.setFieldValue("pdPreference", "know")}
-                          className="w-4 h-4 text-[#014D40] focus:ring-[#014D40] border-gray-300"
-                        />
-                        <span className="text-sm font-medium text-[#1F1F1F]">I know my PD value</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="pdPreference"
-                          value="generate"
-                          checked={formik.values.pdPreference === "generate"}
-                          onChange={() => {
-                            formik.setFieldValue("pdPreference", "generate");
-                            setIsGetMyFitOpen(true);
-                          }}
-                          className="w-4 h-4 text-[#014D40] focus:ring-[#014D40] border-gray-300"
-                        />
-                        <span className="text-sm font-medium text-[#1F1F1F]">Generate new PD value</span>
-                      </label>
-                    </div>
-                    {formik.values.pdPreference === "know" && (
-                      <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                        <div>
-                          <label className="block text-xs font-bold text-[#1F1F1F] uppercase tracking-wide mb-2">
-                            Right Eye (OD) — mm
-                          </label>
-                          <div className="relative">
-                            <select
-                              name="pdRight"
-                              value={formik.values.pdRight}
-                              onChange={formik.handleChange}
-                              onBlur={formik.handleBlur}
-                              className="w-full bg-[#F3F0E7] border border-gray-200 rounded-lg px-4 py-3 pr-8 text-[#1F1F1F] font-medium focus:outline-none focus:border-[#232320] appearance-none cursor-pointer"
-                              style={{ minHeight: "44px" }}
-                            >
-                              <option value="">Select</option>
-                              {pdOptions.map((val) => (
-                                <option key={val} value={val}>{val}</option>
-                              ))}
-                            </select>
-                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-                              <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                                <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                              </svg>
-                            </div>
-                          </div>
-                          {formik.touched.pdRight && formik.errors.pdRight && (
-                            <span className="text-red-500 text-xs mt-1 font-medium">{formik.errors.pdRight as string}</span>
-                          )}
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-[#1F1F1F] uppercase tracking-wide mb-2">
-                            Left Eye (OS) — mm
-                          </label>
-                          <div className="relative">
-                            <select
-                              name="pdLeft"
-                              value={formik.values.pdLeft}
-                              onChange={formik.handleChange}
-                              onBlur={formik.handleBlur}
-                              className="w-full bg-[#F3F0E7] border border-gray-200 rounded-lg px-4 py-3 pr-8 text-[#1F1F1F] font-medium focus:outline-none focus:border-[#232320] appearance-none cursor-pointer"
-                              style={{ minHeight: "44px" }}
-                            >
-                              <option value="">Select</option>
-                              {pdOptions.map((val) => (
-                                <option key={val} value={val}>{val}</option>
-                              ))}
-                            </select>
-                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-                              <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                                <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                              </svg>
-                            </div>
-                          </div>
-                          {formik.touched.pdLeft && formik.errors.pdLeft && (
-                            <span className="text-red-500 text-xs mt-1 font-medium">{formik.errors.pdLeft as string}</span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
 
                   {formik.values.addPrism && (
                     <div className="animate-in slide-in-from-top-2 fade-in duration-300 py-6 border-t border-gray-200">
@@ -1037,43 +970,12 @@ const ManualPrescription: React.FC = () => {
                     </button>
                   </div>
 
-                  <GetMyFitPopup
-                    open={isGetMyFitOpen}
-                    onClose={() => {
-                      setIsGetMyFitOpen(false);
-
-                      // Check if measurements were captured
-                      if (capturedData?.measurements) {
-                        const measurements = capturedData.measurements;
-                        // Populate PD values from captured measurements
-                        if (measurements.pd_right && measurements.pd_left) {
-                          formik.setFieldValue("pdRight", measurements.pd_right.toFixed(2));
-                          formik.setFieldValue("pdLeft", measurements.pd_left.toFixed(2));
-                          formik.setFieldValue("pdPreference", "know");
-                        }
-                        // Keep preference as "generate" since measurement was completed
-                      } else {
-                        // If user closes modal without completing and had selected "generate", reset to empty
-                        if (
-                          formik.values.pdPreference === "generate" &&
-                          !formik.values.pdRight &&
-                          !formik.values.pdLeft
-                        ) {
-                          formik.setFieldValue("pdPreference", "");
-                        }
-                      }
-                    }}
-                  />
                 </Form>
               )
             }}
           </Formik>
         </div>
 
-        <div className="md:hidden flex flex-col justify-center items-center text-red-600 mt-12 mb-8 space-y-2 text-sm font-medium">
-          <p>Don't know your Pupillary Distance (PD)?</p>
-          <button onClick={() => openHelp("Pupillary Distance")} className="underline">Find your PD</button>
-        </div>
       </div>
 
       {/* Sticky Bottom Action Bar for Mobile */}

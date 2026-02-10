@@ -11,6 +11,7 @@ type LensSelectionOverride = {
     lensCategory?: string;
     prescriptionTier?: string;
     mainCategory?: string;
+    lensType?: string;
     coatingTitle?: string;
     coatingPrice?: number;
     tintType?: string;
@@ -256,20 +257,25 @@ export const getLensTypeDisplay = (item: CartItem): string => {
     // Use override mainCategory if available, otherwise use backend main_category
     const mainCategory = override?.mainCategory || item.lens?.main_category || "";
 
-    // Extract prescription tier from main_category
+    // Extract prescription tier from main_category (or override lensType)
+    const overrideLensType = override?.lensType;
     let tier = "";
-    const mainCategoryLower = mainCategory.toLowerCase();
-    if (mainCategoryLower.includes("premium progressive")) {
+    const mainCategoryLower = (mainCategory || "").toLowerCase();
+    if (overrideLensType === "single" || mainCategoryLower.includes("single vision")) {
+        tier = "Single Vision";
+    } else if (mainCategoryLower.includes("premium progressive")) {
         tier = "Premium Progressive";
     } else if (mainCategoryLower.includes("standard progressive")) {
         tier = "Standard Progressive";
     } else if (mainCategoryLower.includes("bifocal")) {
         tier = "Bifocal";
+    } else if (mainCategoryLower.includes("advanced progressive")) {
+        tier = "Advanced Progressive";
+    } else if (mainCategoryLower.includes("precision progressive")) {
+        tier = "Precision Progressive";
     } else if (mainCategoryLower.includes("progressive")) {
-        // Generic progressive if not specified
         tier = "Progressive";
     } else {
-        // Fallback to main_category if it doesn't match known patterns
         tier = mainCategory || "Progressive";
     }
 

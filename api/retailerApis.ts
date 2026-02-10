@@ -2,6 +2,7 @@
 import axios from "./axiosConfig";
 import { getCartLensOverride } from "../utils/priceUtils";
 import { parseDimensionsString } from "../utils/frameDimensions";
+import { getProductFlow } from "../utils/productFlowStorage";
 import {
     addToLocalCart,
     getLocalCartResponse,
@@ -385,8 +386,8 @@ export const clearCart = () => {
 
 // REAL: Delete from Cart (API with localStorage fallback). Works for both logged-in and guest (local fallback).
 export const deleteProductFromCart = (cart_id: any, skuid: any, from: any) => {
-    const raw = cart_id != null ? cart_id : null;
-    const id = raw != null && raw !== "" ? Number(raw) : NaN;
+    const raw = cart_id != null && cart_id !== "" ? cart_id : null;
+    const id = raw === null ? NaN : (typeof raw === "number" ? (Number.isInteger(raw) ? raw : Math.floor(raw)) : parseInt(String(raw), 10));
     if (Number.isNaN(id)) {
         return Promise.resolve({ data: { status: false, message: "Invalid cart id" } });
     }
@@ -404,13 +405,12 @@ export const deleteProductFromCart = (cart_id: any, skuid: any, from: any) => {
         });
 }
 
-/** Get stable cart item id for delete/update (backend may use cart_id, id, cart_item_id, _id) */
+/** Get stable cart item id for delete/update. Backend expects numeric cart_id only (not ObjectId _id). */
 export function getCartItemId(item: any): number | null {
     if (item == null) return null;
-    const raw =
-        item.cart_id ?? item.id ?? item.cart_item_id ?? item._id;
+    const raw = item.cart_id ?? item.cart_item_id ?? item.id;
     if (raw == null || raw === "") return null;
-    const n = Number(raw);
+    const n = typeof raw === "number" ? (Number.isInteger(raw) ? raw : Math.floor(raw)) : parseInt(String(raw), 10);
     return Number.isNaN(n) ? null : n;
 }
 
@@ -648,7 +648,8 @@ export const addPrescription = (customer_id: any, type: any, mode: any, data: an
 export const removePrescription = (cart_id: any) => {
     const formData = new FormData();
     formData.append('cart_id', cart_id.toString());
-    formData.append('prescription_data', ''); // Send empty string or handle 'null' on backend
+    formData.append('mode', 'manual');
+    formData.append('prescription_data', '{}'); // Empty object = clear prescription on backend
 
     return axios.put('/api/v1/cart/prescription', formData);
 }
@@ -708,6 +709,32 @@ export const placeOrder = async (data: any) => {
                 return 0;
             };
 
+            /** Merge PD (from prescription or product flow) into prescription so order stores pdSingle/pdRight/pdLeft */
+            const mergePdIntoPrescription = (productSkuStr: string, prescription: any): any => {
+                if (!prescription || typeof prescription !== 'object') return prescription;
+                const out = { ...prescription };
+                const fromPrescription = prescription.pdSingle != null || prescription.pdRight != null || prescription.pdLeft != null
+                    || prescription.data?.pdSingle != null || prescription.data?.pdRight != null || prescription.data?.pdLeft != null;
+                if (fromPrescription) {
+                    if (prescription.pdSingle != null) out.pdSingle = String(prescription.pdSingle);
+                    if (prescription.pdRight != null) out.pdRight = String(prescription.pdRight);
+                    if (prescription.pdLeft != null) out.pdLeft = String(prescription.pdLeft);
+                    if (prescription.pdType) out.pdType = prescription.pdType;
+                    const d = prescription.data || {};
+                    if (out.pdSingle == null && d.pdSingle != null) out.pdSingle = String(d.pdSingle);
+                    if (out.pdRight == null && d.pdRight != null) out.pdRight = String(d.pdRight);
+                    if (out.pdLeft == null && d.pdLeft != null) out.pdLeft = String(d.pdLeft);
+                    if (!out.pdType && d.pdType) out.pdType = d.pdType;
+                    return out;
+                }
+                const flow = getProductFlow(productSkuStr);
+                if (flow?.pdSingle != null) out.pdSingle = String(flow.pdSingle);
+                if (flow?.pdRight != null) out.pdRight = String(flow.pdRight);
+                if (flow?.pdLeft != null) out.pdLeft = String(flow.pdLeft);
+                if (flow?.pdType) out.pdType = flow.pdType;
+                return out;
+            };
+
             cartItems = cartItems.map((item: any) => {
                 const productId = item.product?.products?.skuid ?? item.product?.products?.id ?? item.product_id ?? item.product?.skuid;
                 const productSkuStr = productId != null && productId !== '' ? String(productId) : '';
@@ -738,7 +765,7 @@ export const placeOrder = async (data: any) => {
                         cart_id: item.cart_id,
                         product_id: productId,
                         product_name: item.name,
-                        prescription: item.prescription
+                        prescription: mergePdIntoPrescription(productSkuStr, item.prescription)
                     });
                     return item;
                 }
@@ -770,13 +797,14 @@ export const placeOrder = async (data: any) => {
                         data: best.data,
                         created_at: best.created_at
                     };
+                    const withPd = mergePdIntoPrescription(productSkuStr, fullPrescription);
                     prescriptionsForMetadata.push({
                         cart_id: item.cart_id,
                         product_id: productId,
                         product_name: item.name,
-                        prescription: fullPrescription
+                        prescription: withPd
                     });
-                    return { ...item, prescription: fullPrescription };
+                    return { ...item, prescription: withPd };
                 }
 
                 // 1b. Single cart item + at least one photo/manual prescription: use latest (in case associatedProduct was missing)
@@ -796,13 +824,14 @@ export const placeOrder = async (data: any) => {
                             data: best.data,
                             created_at: best.created_at
                         };
+                        const withPd = mergePdIntoPrescription(productSkuStr, fullPrescription);
                         prescriptionsForMetadata.push({
                             cart_id: item.cart_id,
                             product_id: productId,
                             product_name: item.name,
-                            prescription: fullPrescription
+                            prescription: withPd
                         });
-                        return { ...item, prescription: fullPrescription };
+                        return { ...item, prescription: withPd };
                     }
                 }
 
@@ -843,13 +872,14 @@ export const placeOrder = async (data: any) => {
                     const prescriptionData = (match.type && (match.image_url || match.data?.image_url))
                         ? { type: match.type, name: match.name, image_url: match.image_url ?? match.data?.image_url, data: match.data, created_at: match.created_at ?? match.createdAt }
                         : (match.prescriptionDetails || match.data || match);
+                    const withPd = mergePdIntoPrescription(productSkuStr, prescriptionData);
                     prescriptionsForMetadata.push({
                         cart_id: item.cart_id,
                         product_id: productId,
                         product_name: item.name,
-                        prescription: prescriptionData
+                        prescription: withPd
                     });
-                    return { ...item, prescription: prescriptionData };
+                    return { ...item, prescription: withPd };
                 }
 
                 // 4. Fallback: PD from product_details
@@ -1135,9 +1165,10 @@ export const updateOrderWithCart = (orderId: string, payload: {
     return axios.patch(`/api/v1/orders/${encodeURIComponent(orderId)}`, payload);
 };
 
-// REAL: Apply Coupon (Hybrid)
+// REAL: Apply Coupon (Hybrid). Normalize code (trim + uppercase) so "launch50" matches LAUNCH50.
 export const applyCoupon = (code: string) => {
-    return axios.post('/api/v1/cart/coupon', { code });
+    const normalized = (code || '').trim().toUpperCase();
+    return axios.post('/api/v1/cart/coupon', { code: normalized });
 };
 
 // REAL: Remove Coupon (Hybrid)

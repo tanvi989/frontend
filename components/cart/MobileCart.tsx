@@ -5,13 +5,15 @@ import {
     formatFrameSize,
     getLensTypeDisplay,
     getLensIndex,
-    getLensCoating
+    getLensCoating,
+    getTintInfo,
+    calculateItemTotal,
 } from "../../utils/priceUtils";
 import WhyMutlifolks from "../WhyMutlifolks";
 import CouponTermsDialog from "../product/CouponTermsDialog";
 import { Footer } from "../Footer";
 import ManualPrescriptionModal from "../ManualPrescriptionModal";
-import { deletePrescription, removePrescription, getMyPrescriptions, getCartItemId } from "../../api/retailerApis";
+import { deletePrescription, removePrescription, getMyPrescriptions, getCartItemId, addPrescription } from "../../api/retailerApis";
 import { trackBeginCheckout } from "../../utils/analytics";
 
 interface MobileCartProps {
@@ -71,6 +73,7 @@ const MobileCart: React.FC<MobileCartProps> = ({
     const [cartItemsOpen, setCartItemsOpen] = useState(true);
     const [priceDetailsOpen, setPriceDetailsOpen] = useState(true);
     const [viewPrescription, setViewPrescription] = useState<any>(null);
+    const [viewPrescriptionCartId, setViewPrescriptionCartId] = useState<number | null>(null);
     const [prescriptionRefresh, setPrescriptionRefresh] = useState(0);
     // State to track which cart items are in edit mode
     const [editingPrescriptions, setEditingPrescriptions] = useState<Set<number>>(new Set());
@@ -97,10 +100,30 @@ const MobileCart: React.FC<MobileCartProps> = ({
             console.log(`🔍 [MobileCart getPrescriptionByCartId] Checking for cartId: ${cartId}, productSku: ${productSku}`);
             console.log(`🔍 [MobileCart getPrescriptionByCartId] Cart item prescription:`, cartItem?.prescription);
             
+            // Get list of active cart IDs to filter out old order prescriptions
+            const activeCartIds = new Set(cartItems.map(ci => String(ci.cart_id)));
+            
             // Check if cart item already has prescription linked
+            // IMPORTANT: Validate that the prescription is actually linked to this cart item and is in active cart
             if (cartItem?.prescription) {
-                console.log('✅ Found prescription on cart item:', cartItem.prescription);
-                return cartItem.prescription;
+                // Check if prescription has a cartId that matches this cart item
+                const presCartId = cartItem.prescription?.associatedProduct?.cartId || 
+                                   cartItem.prescription?.data?.associatedProduct?.cartId ||
+                                   cartItem.prescription?.cartId ||
+                                   cartItem.prescription?.data?.cartId;
+                
+                // Only return if cartId matches AND is in active cart
+                if (presCartId && String(presCartId) === String(cartId) && activeCartIds.has(String(presCartId))) {
+                    console.log('✅ [MobileCart] Found valid prescription on cart item:', cartItem.prescription);
+                    return cartItem.prescription;
+                } else {
+                    console.log('⚠️ [MobileCart] Cart item has prescription but cartId mismatch or not in active cart, ignoring:', {
+                        presCartId,
+                        currentCartId: cartId,
+                        inActiveCart: presCartId ? activeCartIds.has(String(presCartId)) : false
+                    });
+                    // Don't return, continue to search for valid prescription
+                }
             }
 
             // Check user prescriptions from database
@@ -121,6 +144,7 @@ const MobileCart: React.FC<MobileCartProps> = ({
                 };
 
                 // ✅ Match by cartId, then pick LATEST (most recently created/updated)
+                // IMPORTANT: Only match prescriptions for cart items that are currently in the active cart
                 let matches = userPrescriptions.filter((p: any) => {
                     if (!p) return false;
                     const dataCartId = p?.data?.associatedProduct?.cartId;
@@ -128,19 +152,45 @@ const MobileCart: React.FC<MobileCartProps> = ({
                     const directCartId = p?.data?.cartId || p?.cartId;
                     const rootAssociatedCartId = p?.associatedProduct?.cartId;
                     const deepDataCartId = p?.data?.data?.associatedProduct?.cartId;
-                    return (dataCartId && String(dataCartId) === String(cartId)) ||
+                    
+                    // Check if prescription matches the current cartId
+                    const matchesCartId = (dataCartId && String(dataCartId) === String(cartId)) ||
                            (rootCartId && String(rootCartId) === String(cartId)) ||
                            (directCartId && String(directCartId) === String(cartId)) ||
                            (rootAssociatedCartId && String(rootAssociatedCartId) === String(cartId)) ||
                            (deepDataCartId && String(deepDataCartId) === String(cartId));
+                    
+                    if (!matchesCartId) return false;
+                    
+                    // Only return true if the cartId is in the active cart (not from old order)
+                    const prescriptionCartId = rootCartId || dataCartId || directCartId || rootAssociatedCartId || deepDataCartId;
+                    if (prescriptionCartId && activeCartIds.has(String(prescriptionCartId))) {
+                        return true;
+                    } else {
+                        console.log(`⚠️ [MobileCart] Prescription matches cartId ${cartId} but cartId is NOT in active cart (old order)`);
+                        return false;
+                    }
                 });
 
-                // Fallback: match by productSku if no cartId match (normalize to string)
+                // Fallback: match by productSku ONLY if prescription has no cartId (not from old order)
+                // This prevents showing old prescriptions from previous orders
                 if (matches.length === 0 && productSku != null && productSku !== "") {
                     const productSkuStr = String(productSku);
                     console.log(`🔍 [MobileCart getPrescriptionByCartId] Trying productSku fallback: ${productSkuStr}`);
                     matches = userPrescriptions.filter((p: any) => {
                         if (!p) return false;
+                        
+                        // Check if prescription has a cartId (from old order)
+                        const pCartId = p?.associatedProduct?.cartId ?? p?.data?.associatedProduct?.cartId ?? p?.data?.cartId ?? p?.cartId;
+                        // If prescription has a cartId, only use it if cartId is in active cart (not old order)
+                        if (pCartId != null) {
+                            if (!activeCartIds.has(String(pCartId))) {
+                                console.log(`⚠️ [MobileCart] Prescription has cartId ${pCartId} but not in active cart - skipping (old order)`);
+                                return false; // Skip prescriptions from old orders
+                            }
+                        }
+                        
+                        // Match by productSku only if no cartId or cartId is in active cart
                         const dataSku = p?.data?.associatedProduct?.productSku;
                         const rootSku = p?.associatedProduct?.productSku;
                         const deepDataSku = p?.data?.data?.associatedProduct?.productSku;
@@ -171,12 +221,16 @@ const MobileCart: React.FC<MobileCartProps> = ({
             }
 
             // Also check localStorage as fallback (use latest by date if multiple)
+            // IMPORTANT: Only match prescriptions for cart items that are currently in the active cart
             try {
+                const activeCartIds = new Set(cartItems.map(ci => String(ci.cart_id)));
                 const localPrescriptions = JSON.parse(localStorage.getItem('prescriptions') || '[]');
                 console.log(`🔍 [MobileCart getPrescriptionByCartId] Checking ${localPrescriptions.length} localStorage prescriptions...`);
                 const localMatches = localPrescriptions.filter((p: any) => {
-                    const pCartId = p?.associatedProduct?.cartId;
-                    return pCartId && String(pCartId) === String(cartId);
+                    const pCartId = p?.associatedProduct?.cartId || p?.data?.associatedProduct?.cartId;
+                    const matchesCartId = pCartId && String(pCartId) === String(cartId);
+                    // Only return if matches AND cartId is in active cart
+                    return matchesCartId && activeCartIds.has(String(pCartId));
                 });
                 if (localMatches.length > 0) {
                     const getLocalDate = (p: any) => {
@@ -421,31 +475,49 @@ const MobileCart: React.FC<MobileCartProps> = ({
                         </div>
                     </div>
 
-                    {/* Price Details Table */}
-                    <div className="p-4">
-                        <table className="w-full border-collapse">
+                    {/* Price Details Table - same format as desktop; price column reserved so it stays visible */}
+                    <div className="p-4 min-w-0 overflow-x-auto">
+                        <table className="w-full border border-gray-200 border-collapse text-sm" style={{ tableLayout: "fixed", minWidth: "280px" }}>
+                            <colgroup>
+                                <col style={{ width: "38%" }} />
+                                <col />
+                                <col style={{ width: "5rem", minWidth: "5rem" }} />
+                            </colgroup>
                             <tbody>
                                 <tr className="border-b border-gray-200">
-                                    <td className="py-3 text-gray-700 font-medium">Frame</td>
-                                    <td className="py-3 text-right text-gray-900 font-medium">£{Number(item.product?.products?.list_price).toFixed(2)}</td>
+                                    <td className="py-3 px-2 font-bold text-[#1F1F1F] border-r border-gray-200">Frame Price:</td>
+                                    <td className="py-3 px-2 text-[#525252]"></td>
+                                    <td className="py-3 px-2 text-right font-bold text-[#1F1F1F] whitespace-nowrap bg-gray-50 rounded-[1px]">£{Number(item.product?.products?.list_price || 0).toFixed(2)}</td>
                                 </tr>
                                 <tr className="border-b border-gray-200">
-                                    <td className="py-3 text-gray-700 font-medium">{getLensTypeDisplay(item)}</td>
-                                    <td className="py-3 text-right text-gray-900 font-medium">
-                                        {getLensIndex(item).index}
-                                    </td>
+                                    <td className="py-3 px-2 font-bold text-[#1F1F1F] border-r border-gray-200">Frame Size:</td>
+                                    <td className="py-3 px-2 text-[#525252]" colSpan={2}>{formatFrameSize(item.product?.products?.size)}</td>
                                 </tr>
                                 <tr className="border-b border-gray-200">
-                                    <td className="py-3 text-gray-700 font-medium">Lens Index</td>
-                                    <td className="py-3 text-right text-gray-900 font-medium">£{Number(item.lens?.selling_price || 0).toFixed(2)}</td>
+                                    <td className="py-3 px-2 font-bold text-[#1F1F1F] border-r border-gray-200">Lens Type:</td>
+                                    <td className="py-3 px-2 text-[#525252]" colSpan={2}>{getLensTypeDisplay(item)}</td>
                                 </tr>
                                 <tr className="border-b border-gray-200">
-                                    <td className="py-3 text-gray-700 font-medium">{getLensCoating(item).name}</td>
-                                    <td className="py-3 text-right text-gray-900 font-medium">£{Number(getLensCoating(item).price || 0).toFixed(2)}</td>
+                                    <td className="py-3 px-2 font-bold text-[#1F1F1F] border-r border-gray-200">Lens Index:</td>
+                                    <td className="py-3 px-2 text-[#525252] truncate">{getLensIndex(item).index}</td>
+                                    <td className="py-3 px-2 text-right font-bold text-[#1F1F1F] whitespace-nowrap bg-gray-50 rounded-[1px]">£{getLensIndex(item).price.toFixed(2)}</td>
                                 </tr>
+                                {getTintInfo(item) ? (
+                                    <tr className="border-b border-gray-200">
+                                        <td className="py-3 px-2 font-bold text-[#1F1F1F] border-r border-gray-200">Lens Tint:</td>
+                                        <td className="py-3 px-2 text-[#525252] truncate">{getTintInfo(item)!.type}{getTintInfo(item)!.color ? `-${getTintInfo(item)!.color}` : ""}</td>
+                                        <td className="py-3 px-2 text-right font-bold text-[#1F1F1F] whitespace-nowrap bg-gray-50 rounded-[1px]">£{Number(getTintInfo(item)!.price).toFixed(2)}</td>
+                                    </tr>
+                                ) : (
+                                    <tr className="border-b border-gray-200">
+                                        <td className="py-3 px-2 font-bold text-[#1F1F1F] border-r border-gray-200">Lens Coating:</td>
+                                        <td className="py-3 px-2 text-[#525252] truncate">{getLensCoating(item).name}</td>
+                                        <td className="py-3 px-2 text-right font-bold text-[#1F1F1F] whitespace-nowrap bg-gray-50 rounded-[1px]">£{Number(getLensCoating(item).price || 0).toFixed(2)}</td>
+                                    </tr>
+                                )}
                                 <tr className="border-b border-gray-200">
-                                    <td className="py-3 text-gray-700 font-medium">Quantity</td>
-                                    <td className="py-3 text-right">
+                                    <td className="py-3 px-2 text-gray-700 font-medium border-r border-gray-200">Quantity</td>
+                                    <td className="py-3 px-2 text-right" colSpan={2}>
                                         <div className="flex items-center justify-end gap-2">
                                             <button
                                                 disabled={isQuantityUpdating}
@@ -468,14 +540,9 @@ const MobileCart: React.FC<MobileCartProps> = ({
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td className="py-3 text-gray-900 font-bold text-lg">Subtotal</td>
-                                    <td className="py-3 text-right text-gray-900 font-bold text-lg">
-                                        £{(
-                                            (Number(item.product?.products?.list_price || 0) +
-                                                Number(item.lens?.selling_price || 0) +
-                                                Number(getLensCoating(item).price || 0)) *
-                                            (item.quantity || 1)
-                                        ).toFixed(2)}
+                                    <td className="py-3 px-2 text-gray-900 font-bold text-lg" colSpan={2}>Subtotal</td>
+                                    <td className="py-3 px-2 text-right text-gray-900 font-bold text-lg">
+                                        £{calculateItemTotal(item).toFixed(2)}
                                     </td>
                                 </tr>
                             </tbody>
@@ -504,6 +571,7 @@ const MobileCart: React.FC<MobileCartProps> = ({
                                                 onClick={() => {
                                                     console.log('📋 Opening prescription modal with data:', prescription);
                                                     setViewPrescription(prescription);
+                                                    setViewPrescriptionCartId(item.cart_id);
                                                 }}
                                                 className="bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded transition-colors w-full"
                                             >
@@ -832,8 +900,28 @@ const MobileCart: React.FC<MobileCartProps> = ({
             {/* Manual Prescription Modal - Removed onRemove prop to hide the remove button */}
             <ManualPrescriptionModal
                 open={!!viewPrescription}
-                onClose={() => setViewPrescription(null)}
+                onClose={() => { setViewPrescription(null); setViewPrescriptionCartId(null); }}
                 prescription={viewPrescription}
+                cartId={viewPrescriptionCartId ?? undefined}
+                onSavePD={viewPrescriptionCartId != null && viewPrescription && refetchCart && refetchPrescriptions ? async (pd) => {
+                    const userStr = localStorage.getItem("user");
+                    const user = userStr ? JSON.parse(userStr) : null;
+                    const userId = user?._id ?? user?.id ?? "";
+                    const base = viewPrescription.prescriptionDetails || viewPrescription.data || viewPrescription;
+                    const baseObj = typeof base === "object" && base ? base : {};
+                    const updated = {
+                        ...viewPrescription,
+                        ...baseObj,
+                        ...pd,
+                        prescriptionDetails: { ...baseObj, ...pd },
+                        data: { ...baseObj, ...pd },
+                    };
+                    await addPrescription(userId, viewPrescription.type || "upload", viewPrescription.type || "upload", updated, viewPrescriptionCartId);
+                    refetchCart();
+                    refetchPrescriptions();
+                    setPrescriptionRefresh((p) => p + 1);
+                    setViewPrescription(updated);
+                } : undefined}
             />
         </div>
     );

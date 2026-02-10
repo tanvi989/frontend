@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import CheckoutStepper from "../components/CheckoutStepper";
 import ProductDetailsFooter from "../components/ProductDetailsFooter";
 import { addToCart, selectLens, addPrescription, updateMyPrescription } from "../api/retailerApis";
+import { setCartLensOverride } from "../utils/priceUtils";
 import { trackAddToCart } from "@/utils/analytics";
 
 
@@ -255,10 +256,32 @@ const SelectLensType: React.FC = () => {
             ? pkg.priceValue
             : parseInt(pkg.price.replace(/[^0-9]/g, "")) || 0;
 
+        const mainCategoryValue = state?.lensType === "single"
+          ? "Single Vision"
+          : state?.lensType === "bifocal"
+            ? "Bifocal"
+            : state?.precisionPlus
+              ? "Precision Progressive"
+              : state?.prescriptionTier === "advanced"
+                ? "Premium Progressive"
+                : state?.prescriptionTier === "standard"
+                  ? "Standard Progressive"
+                  : "Progressive";
+
         await selectLens(product.skuid, cartId, pkg.id, {
           title: pkg.title,
-          lensPackagePrice: priceValue, // Use lensPackagePrice so backend maps it to selling_price (Lens Price)
-          priceValue: 0, // Set coating price to 0 as this page only selects the lens package
+          lensPackagePrice: priceValue,
+          priceValue: 0,
+          lensCategory: state?.lensCategory || selectedCategory,
+          main_category: mainCategoryValue,
+        });
+
+        setCartLensOverride(cartId, {
+          lensPackage: pkg.id,
+          lensPackagePrice: priceValue,
+          lensCategory: state?.lensCategory || selectedCategory,
+          mainCategory: mainCategoryValue,
+          lensType: state?.lensType,
         });
 
         // Check session storage for product-based prescriptions

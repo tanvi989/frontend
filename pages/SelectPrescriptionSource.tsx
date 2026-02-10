@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import CheckoutStepper from "../components/CheckoutStepper";
 import Toast from "../components/Toast";
@@ -6,11 +6,11 @@ import { getProductFlow, setProductFlow } from "../utils/productFlowStorage";
 import { LoginModal } from "../components/LoginModal";
 import PrescriptionHelpModal from "../components/PrescriptionHelpModal";
 import GetMyFitPopup from "../components/getMyFitPopup/GetMyFitPopup";
-import { X } from "lucide-react";
+import { X, Volume2, VolumeX } from "lucide-react";
 
 const SelectPrescriptionSource: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { state: locationState } = useLocation();
+  const { state: locationState, pathname } = useLocation();
   const flow = id ? getProductFlow(id) : null;
   const state = { ...flow, product: locationState?.product ?? flow?.product, ...locationState };
   const navigate = useNavigate();
@@ -24,6 +24,28 @@ const SelectPrescriptionSource: React.FC = () => {
   const [helpModalOpen, setHelpModalOpen] = useState(false);
   const [helpModalTab, setHelpModalTab] = useState("Pupillary Distance");
   const [isGetMyFitOpen, setIsGetMyFitOpen] = useState(false);
+  const [voiceMuted, setVoiceMuted] = useState(false);
+  const [capturedPD, setCapturedPD] = useState<{ pdSingle?: number; pdRight?: number; pdLeft?: number } | null>(null);
+
+  const pdVoiceText =
+    "PD made simple. Some prescriptions show Distance PD and Near PD — use Distance PD for progressives. " +
+    "If your prescription has only one PD value, enter single PD we will do the rest. " +
+    "If your prescription does not have PD, no worries — our MFit measures both eyes precisely, tested on thousands.";
+
+  // Play voice every time user lands on this page (pathname includes select-prescription-source)
+  useEffect(() => {
+    if (voiceMuted || !window.speechSynthesis || !pathname.includes("select-prescription-source")) return;
+    const timer = setTimeout(() => {
+      const utterance = new SpeechSynthesisUtterance(pdVoiceText);
+      utterance.rate = 0.9;
+      utterance.lang = "en-US";
+      window.speechSynthesis.speak(utterance);
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      window.speechSynthesis.cancel();
+    };
+  }, [voiceMuted, pathname]);
 
   const pdOptions = React.useMemo(
     () => Array.from({ length: 45 }, (_, i) => (20 + i * 0.5).toFixed(2)),
@@ -33,6 +55,36 @@ const SelectPrescriptionSource: React.FC = () => {
     () => Array.from({ length: 81 }, (_, i) => (40 + i * 0.5).toFixed(2)),
     []
   );
+
+  // Function to round PD to nearest dropdown option
+  // Special handling: if PD is 60.50, choose 61.00; if less than 60.5 (but >= 60), choose 60.00
+  const roundPdToDropdownOption = (value: number, options: string[]): string => {
+    if (isNaN(value) || value <= 0) return "";
+    
+    const numValue = Number(value);
+    
+    // Special handling for values around 60-61
+    if (numValue >= 60 && numValue < 60.5) {
+      return "60.00";
+    }
+    if (numValue === 60.5 || (numValue > 60.5 && numValue <= 61)) {
+      return "61.00";
+    }
+    
+    // Otherwise, find the nearest option
+    let closest = options[0];
+    let minDiff = Math.abs(numValue - parseFloat(closest));
+    
+    for (const option of options) {
+      const diff = Math.abs(numValue - parseFloat(option));
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = option;
+      }
+    }
+    
+    return closest;
+  };
 
   const openHelp = (tab: string) => {
     setHelpModalTab(tab);
@@ -84,6 +136,57 @@ const SelectPrescriptionSource: React.FC = () => {
   const handleGenerateNewPd = () => {
     if (id) setProductFlow(id, { pdPreference: "generate" });
     setIsGetMyFitOpen(true);
+  };
+
+  // Auto-fill PD when MFit captures it (extra feature - doesn't show VTO result page)
+  const handlePDCaptured = (pdData: { pdSingle?: number; pdRight?: number; pdLeft?: number }) => {
+    setCapturedPD(pdData);
+    setIsGetMyFitOpen(false);
+    
+    // Auto-select "I know my PD value" and fill the fields
+    setPdPreference("know");
+    
+    if (pdData.pdSingle != null) {
+      // Single PD: use total PD value, rounded to nearest dropdown option
+      setPdType("single");
+      const roundedSingle = roundPdToDropdownOption(pdData.pdSingle, pdSingleOptions);
+      setPdSingle(roundedSingle);
+      setPdRight("");
+      setPdLeft("");
+    } else if (pdData.pdRight != null && pdData.pdLeft != null) {
+      // Dual PD: use right and left, rounded to nearest dropdown option
+      setPdType("dual");
+      const roundedRight = roundPdToDropdownOption(pdData.pdRight, pdOptions);
+      const roundedLeft = roundPdToDropdownOption(pdData.pdLeft, pdOptions);
+      setPdRight(roundedRight);
+      setPdLeft(roundedLeft);
+      setPdSingle("");
+    } else if (pdData.pdRight != null || pdData.pdLeft != null) {
+      // Fallback: if only one eye, use it for both or calculate single
+      const singleValue = pdData.pdRight ?? pdData.pdLeft ?? 0;
+      if (singleValue > 0) {
+        setPdType("single");
+        const estimatedTotal = singleValue * 2;
+        const roundedSingle = roundPdToDropdownOption(estimatedTotal, pdSingleOptions);
+        setPdSingle(roundedSingle); // Estimate total from one eye
+        setPdRight("");
+        setPdLeft("");
+      }
+    }
+    
+    // Save to flow
+    if (id) {
+      const pdPayload: any = { pdPreference: "know" };
+      if (pdData.pdSingle != null) {
+        pdPayload.pdType = "single";
+        pdPayload.pdSingle = roundPdToDropdownOption(pdData.pdSingle, pdSingleOptions);
+      } else if (pdData.pdRight != null && pdData.pdLeft != null) {
+        pdPayload.pdType = "dual";
+        pdPayload.pdRight = roundPdToDropdownOption(pdData.pdRight, pdOptions);
+        pdPayload.pdLeft = roundPdToDropdownOption(pdData.pdLeft, pdOptions);
+      }
+      setProductFlow(id, pdPayload);
+    }
   };
 
   return (
@@ -325,11 +428,29 @@ const SelectPrescriptionSource: React.FC = () => {
           )}
         </div>
 
-        {/* PD made simple - short instructions */}
+        {/* PD made simple - short instructions (voice reads on page load) */}
         <div className="w-full max-w-[900px] mx-auto mt-6 md:mt-8 p-4 md:p-5 bg-white/80 border border-[#777] rounded-[20px]">
-          <h4 className="text-[#1F1F1F] font-bold text-sm uppercase tracking-wide mb-3">
-            PD made simple
-          </h4>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h4 className="text-[#1F1F1F] font-bold text-sm uppercase tracking-wide">
+              PD made simple
+            </h4>
+            <button
+              type="button"
+              onClick={() => {
+                if (voiceMuted) {
+                  setVoiceMuted(false);
+                } else {
+                  window.speechSynthesis.cancel();
+                  setVoiceMuted(true);
+                }
+              }}
+              className="p-1.5 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+              aria-label={voiceMuted ? "Play PD info" : "Mute PD info"}
+              title={voiceMuted ? "Play again" : "Mute"}
+            >
+              {voiceMuted ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            </button>
+          </div>
           <ul className="text-sm text-gray-700 space-y-2 list-none pl-0">
             <li className="flex gap-2">
               <span className="text-[#6B8E23] font-bold shrink-0">•</span>
@@ -337,11 +458,11 @@ const SelectPrescriptionSource: React.FC = () => {
             </li>
             <li className="flex gap-2">
               <span className="text-[#6B8E23] font-bold shrink-0">•</span>
-              <span>If only one PD is listed, we automatically split it for each eye.</span>
+              <span>If your prescription has only one PD value, enter single PD we will do the rest.</span>
             </li>
             <li className="flex gap-2">
               <span className="text-[#6B8E23] font-bold shrink-0">•</span>
-              <span>MFit measures both eyes precisely, tested on thousands.</span>
+              <span>If your prescription does not have PD, no worries — our MFit measures both eyes precisely, tested on thousands.</span>
             </li>
           </ul>
         </div>
@@ -383,6 +504,7 @@ const SelectPrescriptionSource: React.FC = () => {
       <GetMyFitPopup
         open={isGetMyFitOpen}
         onClose={() => setIsGetMyFitOpen(false)}
+        onPDCaptured={handlePDCaptured}
       />
     </div>
   );

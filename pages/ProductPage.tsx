@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { Share2 } from "lucide-react";
+import { Share2, ArrowLeft } from "lucide-react";
 import { GetMyFitModal } from "../components/GetMyFitModal";
 import { ChatWidget } from "../components/ChatWidget";
 import { getProductDetails, addRecentlyViewed } from "../api/retailerApis";
@@ -759,6 +759,15 @@ const ProductPage: React.FC = () => {
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
+          {/* Back button - mobile */}
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="absolute top-4 left-4 z-30 w-10 h-10 rounded-full bg-white/90 hover:bg-white border border-gray-200 shadow-sm flex items-center justify-center text-[#1F1F1F]"
+            aria-label="Go back"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
           {product.images && product.images.length > 0 ? (
             <>
               {/* Slides Container */}
@@ -1114,13 +1123,6 @@ const ProductPage: React.FC = () => {
           isStickyVisible ? "translate-y-0" : "translate-y-full"
         }`}
       >
-        <button
-          type="button"
-          onClick={handleSelectPdOption}
-          className="w-full text-center text-sm font-medium text-[#4A90A4] hover:underline mb-2 py-1"
-        >
-          Select PD option
-        </button>
         <div className="flex items-stretch gap-2 mb-3">
           <button
             onClick={handleBuyNow}
@@ -1147,6 +1149,16 @@ const ProductPage: React.FC = () => {
       <div className="hidden lg:flex flex-col lg:flex-row h-full min-h-screen items-start">
         {/* Left Column: Image Stack — main product images; small VTO preview when user has MFit */}
         <div className="lg:w-1/2 bg-white relative flex flex-col mt-24">
+          {/* Back button - left of me over image (desktop) */}
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="absolute top-6 left-6 z-30 flex items-center gap-2 rounded-full bg-white/90 hover:bg-white border border-gray-200 shadow-sm px-4 py-2.5 text-sm font-medium text-[#1F1F1F]"
+            aria-label="Go back"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Back
+          </button>
           <div className="w-full max-w-full flex flex-col gap-[1px] relative">
             {product.images && product.images.length > 0 ? (
               product.images.slice(0, 4).map((img: string, idx: number) => (
@@ -1445,13 +1457,6 @@ const ProductPage: React.FC = () => {
 
           {/* CTA Buttons */}
           <div className="sticky bottom-0 left-0 right-0 bg-white pt-4 pb-[6px] space-y-4  mb-[20px] z-30 mt-auto -mx-8 px-8 md:-mx-12 md:px-12 lg:-mx-16 lg:px-16">
-            <button
-              type="button"
-              onClick={handleSelectPdOption}
-              className="w-full text-center text-sm font-medium text-[#4A90A4] hover:underline py-1"
-            >
-              Select PD option
-            </button>
             <div className="flex items-stretch gap-2">
               <button
                 onClick={handleBuyNow}

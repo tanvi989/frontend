@@ -215,8 +215,9 @@ const SelectLensColor: React.FC = () => {
 
   const handleTintSelect = (tintId: string) => {
     setSelectedTintType(tintId);
+    // Always expand the selected tint section
     setExpandedSection(tintId);
-    // Reset color to first available color for this tint type
+    // Auto-select first color (Gray) for the selected tint type
     const tint = TINT_OPTIONS.find((t) => t.id === tintId);
     if (tint && tint.colors.length > 0) {
       setSelectedColor(tint.colors[0].name);
@@ -249,11 +250,11 @@ const SelectLensColor: React.FC = () => {
           </h1>
 
           {/* Product Image */}
-          <div className="bg-white rounded-xl p-2 mb-6 border border-[#E5E0D8]">
+          <div className="bg-white rounded-xl p-3 md:p-4 mb-6 border border-[#E5E0D8]">
             <img
               src={product.image || "/placeholder-sunglasses.png"}
               alt={product.name}
-              className="w-42 h-40 mx-auto object-contain"
+              className="w-full max-w-xs md:max-w-sm lg:max-w-md h-auto mx-auto object-contain"
             />
           </div>
         </div>
@@ -272,7 +273,7 @@ const SelectLensColor: React.FC = () => {
               >
                 {/* Header */}
                 <button
-                  onClick={() => toggleSection(tint.id)}
+                  onClick={() => handleTintSelect(tint.id)}
                   className="w-full px-6 py-4 flex items-center justify-between text-left"
                 >
                   <div className="flex items-center gap-4">

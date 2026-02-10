@@ -51,19 +51,20 @@ const SelectLensPackages: React.FC = () => {
 
   const getPrescriptionTypeLabel = () => {
     const tier = state?.prescriptionTier;
-    if (tier === "advanced") return "Premium Progressive";
+    if (state?.lensType === "progressive" && state?.precisionPlus) return "Precision Progressive";
+    if (tier === "advanced") return "Advanced Progressive";
     if (tier === "standard") return "Standard Progressive";
     return state?.lensType === "single" ? "Single Vision" : "Bifocal/Progressive";
   };
 
   const lensCategory = state?.lensCategory || "blue";
 
-  // Single Vision packages with 1.56 Low Index option added
+  // Single Vision packages (pricing: clear 0/19/39/69, blueprotect 19/39/59/79, photochromic 29/49/79/99, sunglasses 1.56 only 29)
   const SINGLE_VISION_BLUE_PACKAGES = [
     {
       id: "1.56",
       title: "1.56 Blue Protect Low Index",
-      price: "+£9",
+      price: "+£19",
       features: [
         "Suitable for select frames only",
         "For low powers up to +/- 3",
@@ -73,7 +74,7 @@ const SelectLensPackages: React.FC = () => {
     {
       id: "1.61",
       title: "1.61 Blue Protect High Index",
-      price: "+£49",
+      price: "+£39",
       features: [
         "20% thinner than 1.50 Standard lenses",
         "Superior clarity",
@@ -85,7 +86,7 @@ const SelectLensPackages: React.FC = () => {
     {
       id: "1.67",
       title: "1.67 Blue Protect High Index",
-      price: "+£79",
+      price: "+£59",
       features: [
         "30% thinner than 1.50 Standard lenses",
         "High clarity",
@@ -97,7 +98,7 @@ const SelectLensPackages: React.FC = () => {
     {
       id: "1.74",
       title: "1.74 Blue Protect High Index",
-      price: "+£119",
+      price: "+£79",
       features: [
         "40% thinner than 1.50 Standard lenses",
         "Optimum clarity",
@@ -112,7 +113,7 @@ const SelectLensPackages: React.FC = () => {
     {
       id: "1.56",
       title: "1.56 Clear Low Index",
-      price: "+£9",
+      price: "+£0",
       features: [
         "Suitable for select frames only",
         "For low powers up to +/- 3",
@@ -122,7 +123,7 @@ const SelectLensPackages: React.FC = () => {
     {
       id: "1.61",
       title: "1.61 High Index",
-      price: "+£39",
+      price: "+£19",
       features: [
         "20% thinner than 1.50 Standard lenses",
         "Superior clarity",
@@ -134,7 +135,7 @@ const SelectLensPackages: React.FC = () => {
     {
       id: "1.67",
       title: "1.67 High Index",
-      price: "+£59",
+      price: "+£39",
       features: [
         "30% thinner than 1.50 Standard lenses",
         "High clarity",
@@ -146,7 +147,7 @@ const SelectLensPackages: React.FC = () => {
     {
       id: "1.74",
       title: "1.74 High Index",
-      price: "+£89",
+      price: "+£69",
       features: [
         "40% thinner than 1.50 Standard lenses",
         "Optimum clarity",
@@ -161,7 +162,7 @@ const SelectLensPackages: React.FC = () => {
     {
       id: "1.56",
       title: "1.56 Photochromic Low Index",
-      price: "+£49",
+      price: "+£29",
       features: [
         "Suitable for select frames only",
         "For low powers up to +/- 3",
@@ -214,7 +215,7 @@ const SelectLensPackages: React.FC = () => {
     {
       id: "1.56",
       title: "1.56 Sunglasses Low Index",
-      price: "+£49",
+      price: "+£29",
       features: [
         "Suitable for select frames only",
         "For low powers up to +/- 3",
@@ -450,7 +451,67 @@ const SelectLensPackages: React.FC = () => {
     },
   ];
 
-  // Select packages based on category and lens type
+  // --- Progressive by tier: Standard, Advanced, Precision (from pricing table) ---
+  const isPrecisionProgressive = state?.lensType === "progressive" && state?.prescriptionTier === "advanced" && state?.precisionPlus;
+  const isAdvancedProgressive = state?.lensType === "progressive" && state?.prescriptionTier === "advanced" && !state?.precisionPlus;
+  const isStandardProgressive = state?.lensType === "progressive" && state?.prescriptionTier === "standard";
+
+  // Standard Progressive: 1.61 clear 0, blue 39, photo 49, sun 29; 1.67 clear 39, blue 59, photo 69; 1.74 clear 79, blue 89, photo 88
+  const STANDARD_PROG_CLEAR = [
+    { id: "1.61", title: "1.61 High Index", price: "+£0", features: ["20% thinner than 1.50 Standard lenses", "Superior clarity", "Prescriptions between +4.00/-6.00"], recommended: true },
+    { id: "1.67", title: "1.67 High Index", price: "+£39", features: ["30% thinner than 1.50 Standard lenses", "High clarity", "Prescriptions between +6.00/-8.00"], recommended: false },
+    { id: "1.74", title: "1.74 High Index", price: "+£79", features: ["40% thinner than 1.50 Standard lenses", "Optimum clarity", "Prescriptions between +8.00/-12.00"], recommended: false },
+  ];
+  const STANDARD_PROG_BLUE = [
+    { id: "1.61", title: "1.61 Blue Protect High Index", price: "+£39", features: ["20% thinner than 1.50 Standard lenses", "Superior clarity", "Prescriptions between +4.00/-6.00"], recommended: true },
+    { id: "1.67", title: "1.67 Blue Protect High Index", price: "+£59", features: ["30% thinner than 1.50 Standard lenses", "High clarity", "Prescriptions between +6.00/-8.00"], recommended: false },
+    { id: "1.74", title: "1.74 Blue Protect High Index", price: "+£89", features: ["40% thinner than 1.50 Standard lenses", "Optimum clarity", "Prescriptions between +8.00/-12.00"], recommended: false },
+  ];
+  const STANDARD_PROG_PHOTO = [
+    { id: "1.61", title: "1.61 Photochromic High Index", price: "+£49", features: ["20% thinner than 1.56 Standard lenses", "Free Blue Protect Coating", "Prescriptions between +4.00/-6.00"], recommended: true },
+    { id: "1.67", title: "1.67 Photochromic High Index", price: "+£69", features: ["30% thinner than 1.56 Standard lenses", "Free Blue Protect Coating", "Prescriptions between +6.00/-8.00"], recommended: false },
+    { id: "1.74", title: "1.74 Photochromic High Index", price: "+£88", features: ["40% thinner than 1.56 Standard lenses", "Free Blue Protect Coating", "Prescriptions between +8.00/-12.00"], recommended: false },
+  ];
+  const STANDARD_PROG_SUN = [
+    { id: "1.61", title: "1.61 High Index", price: "+£29", features: ["20% thinner than 1.50 Standard lenses", "Full UV protection", "Prescriptions between +4.00/-6.00"], recommended: true },
+  ];
+
+  // Advanced Progressive: 1.61 clear 39, blue 59, sun 59; 1.67 clear 59, blue 89; 1.74 clear 89, blue 139
+  const ADVANCED_PROG_CLEAR = [
+    { id: "1.61", title: "1.61 High Index", price: "+£39", features: ["20% thinner than 1.50 Standard lenses", "Superior clarity", "Prescriptions between +4.00/-6.00"], recommended: true },
+    { id: "1.67", title: "1.67 High Index", price: "+£59", features: ["30% thinner than 1.50 Standard lenses", "High clarity", "Prescriptions between +6.00/-8.00"], recommended: false },
+    { id: "1.74", title: "1.74 High Index", price: "+£89", features: ["40% thinner than 1.50 Standard lenses", "Optimum clarity", "Prescriptions between +8.00/-12.00"], recommended: false },
+  ];
+  const ADVANCED_PROG_BLUE = [
+    { id: "1.61", title: "1.61 Blue Protect High Index", price: "+£59", features: ["20% thinner than 1.50 Standard lenses", "Superior clarity", "Prescriptions between +4.00/-6.00"], recommended: true },
+    { id: "1.67", title: "1.67 Blue Protect High Index", price: "+£89", features: ["30% thinner than 1.50 Standard lenses", "High clarity", "Prescriptions between +6.00/-8.00"], recommended: false },
+    { id: "1.74", title: "1.74 Blue Protect High Index", price: "+£139", features: ["40% thinner than 1.50 Standard lenses", "Optimum clarity", "Prescriptions between +8.00/-12.00"], recommended: false },
+  ];
+  const ADVANCED_PROG_SUN = [
+    { id: "1.61", title: "1.61 High Index", price: "+£59", features: ["20% thinner than 1.50 Standard lenses", "Full UV protection", "Prescriptions between +4.00/-6.00"], recommended: true },
+  ];
+
+  // Precision Progressive: 1.61 clear 59, blue 69, photo 79, sun 69; 1.67 clear 79, blue 99, photo 109; 1.74 clear 109, blue 139, photo 159
+  const PRECISION_PROG_CLEAR = [
+    { id: "1.61", title: "1.61 High Index", price: "+£59", features: ["20% thinner than 1.50 Standard lenses", "Superior clarity", "Prescriptions between +4.00/-6.00"], recommended: true },
+    { id: "1.67", title: "1.67 High Index", price: "+£79", features: ["30% thinner than 1.50 Standard lenses", "High clarity", "Prescriptions between +6.00/-8.00"], recommended: false },
+    { id: "1.74", title: "1.74 High Index", price: "+£109", features: ["40% thinner than 1.50 Standard lenses", "Optimum clarity", "Prescriptions between +8.00/-12.00"], recommended: false },
+  ];
+  const PRECISION_PROG_BLUE = [
+    { id: "1.61", title: "1.61 Blue Protect High Index", price: "+£69", features: ["20% thinner than 1.50 Standard lenses", "Superior clarity", "Prescriptions between +4.00/-6.00"], recommended: true },
+    { id: "1.67", title: "1.67 Blue Protect High Index", price: "+£99", features: ["30% thinner than 1.50 Standard lenses", "High clarity", "Prescriptions between +6.00/-8.00"], recommended: false },
+    { id: "1.74", title: "1.74 Blue Protect High Index", price: "+£139", features: ["40% thinner than 1.50 Standard lenses", "Optimum clarity", "Prescriptions between +8.00/-12.00"], recommended: false },
+  ];
+  const PRECISION_PROG_PHOTO = [
+    { id: "1.61", title: "1.61 Photochromic High Index", price: "+£79", features: ["20% thinner than 1.56 Standard lenses", "Free Blue Protect Coating", "Prescriptions between +4.00/-6.00"], recommended: true },
+    { id: "1.67", title: "1.67 Photochromic High Index", price: "+£109", features: ["30% thinner than 1.56 Standard lenses", "Free Blue Protect Coating", "Prescriptions between +6.00/-8.00"], recommended: false },
+    { id: "1.74", title: "1.74 Photochromic High Index", price: "+£159", features: ["40% thinner than 1.56 Standard lenses", "Free Blue Protect Coating", "Prescriptions between +8.00/-12.00"], recommended: false },
+  ];
+  const PRECISION_PROG_SUN = [
+    { id: "1.61", title: "1.61 High Index", price: "+£69", features: ["20% thinner than 1.50 Standard lenses", "Full UV protection", "Prescriptions between +4.00/-6.00"], recommended: true },
+  ];
+
+  // Select packages based on category and lens type (progressive uses tier: standard / advanced / precision)
   const packages =
     state?.lensType === "single"
       ? lensCategory === "blue"
@@ -460,17 +521,45 @@ const SelectLensPackages: React.FC = () => {
           : lensCategory === "sun"
             ? SINGLE_VISION_SUN_PACKAGES
             : SINGLE_VISION_CLEAR_PACKAGES
-      : lensCategory === "blue"
-        ? state?.lensType === "bifocal"
+      : state?.lensType === "bifocal"
+        ? lensCategory === "blue"
           ? BIFOCAL_BLUE_PACKAGES
-          : BLUE_PROTECT_PACKAGES
-        : lensCategory === "photo"
-          ? PHOTOCHROMIC_PACKAGES
-          : lensCategory === "sun"
-            ? SUNGLASSES_PACKAGES
-            : state?.lensType === "bifocal"
-              ? BIFOCAL_CLEAR_PACKAGES
-              : CLEAR_PACKAGES;
+          : lensCategory === "photo"
+            ? PHOTOCHROMIC_PACKAGES
+            : lensCategory === "sun"
+              ? SUNGLASSES_PACKAGES
+              : BIFOCAL_CLEAR_PACKAGES
+        : isStandardProgressive
+          ? lensCategory === "blue"
+            ? STANDARD_PROG_BLUE
+            : lensCategory === "photo"
+              ? STANDARD_PROG_PHOTO
+              : lensCategory === "sun"
+                ? STANDARD_PROG_SUN
+                : STANDARD_PROG_CLEAR
+          : isAdvancedProgressive
+            ? lensCategory === "blue"
+              ? ADVANCED_PROG_BLUE
+              : lensCategory === "photo"
+                ? STANDARD_PROG_PHOTO
+                : lensCategory === "sun"
+                  ? ADVANCED_PROG_SUN
+                  : ADVANCED_PROG_CLEAR
+            : isPrecisionProgressive
+              ? lensCategory === "blue"
+                ? PRECISION_PROG_BLUE
+                : lensCategory === "photo"
+                  ? PRECISION_PROG_PHOTO
+                  : lensCategory === "sun"
+                    ? PRECISION_PROG_SUN
+                    : PRECISION_PROG_CLEAR
+              : lensCategory === "blue"
+                ? BLUE_PROTECT_PACKAGES
+                : lensCategory === "photo"
+                  ? PHOTOCHROMIC_PACKAGES
+                  : lensCategory === "sun"
+                    ? SUNGLASSES_PACKAGES
+                    : CLEAR_PACKAGES;
 
   const handleSelectPackage = (pkgId: string) => {
     setSelectedPackage(pkgId);
@@ -495,6 +584,7 @@ const SelectLensPackages: React.FC = () => {
         product: product as any,
         selectedLensPackage: pkgId,
         selectedLensPrice: priceValue,
+        lensCategory: lensCategory, // Ensure lensCategory is preserved
       },
     });
 

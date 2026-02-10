@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { X } from "lucide-react";
 
 interface ManualPrescriptionModalProps {
@@ -6,6 +6,22 @@ interface ManualPrescriptionModalProps {
     onClose: () => void;
     prescription: any;
     onRemove?: () => void;
+    cartId?: number;
+    onSavePD?: (pd: { pdSingle?: string; pdRight?: string; pdLeft?: string }) => void | Promise<void>;
+    /** When false, hide "Add PD" / "Edit PD" (e.g. on cart – PD is only added on select-prescription-source). Default true. */
+    allowEditPd?: boolean;
+}
+
+// Get PD from prescription from all possible paths (so we don't show "Not provided" when it exists elsewhere)
+function getPdFromPrescription(prescription: any): { pdSingle?: string; pdRight?: string; pdLeft?: string; isDual?: boolean } {
+    if (!prescription) return {};
+    const d = prescription.prescriptionDetails || prescription.data || prescription;
+    const root = prescription as any;
+    const pdSingle = root.pdSingle ?? root.single ?? d.pdSingle ?? d.single ?? d.totalPD ?? (d.pdOD && d.pdOS ? `${d.pdOD}/${d.pdOS}` : undefined);
+    const pdRight = root.pdRight ?? root.right ?? d.pdRight ?? d.right ?? d.pdOD;
+    const pdLeft = root.pdLeft ?? root.left ?? d.pdLeft ?? d.left ?? d.pdOS;
+    const isDual = root.pdType === "Dual" || root.pdType === "dual" || !!(pdRight && pdLeft);
+    return { pdSingle, pdRight, pdLeft, isDual };
 }
 
 const ManualPrescriptionModal: React.FC<ManualPrescriptionModalProps> = ({
@@ -13,7 +29,29 @@ const ManualPrescriptionModal: React.FC<ManualPrescriptionModalProps> = ({
     onClose,
     prescription,
     onRemove,
+    cartId,
+    onSavePD,
+    allowEditPd = true,
 }) => {
+    const [editingPd, setEditingPd] = useState(false);
+    const [pdSingle, setPdSingle] = useState("");
+    const [pdRight, setPdRight] = useState("");
+    const [pdLeft, setPdLeft] = useState("");
+    const [pdType, setPdType] = useState<"single" | "dual">("single");
+    const [savingPd, setSavingPd] = useState(false);
+
+    const canEditPd = !!(cartId && onSavePD && allowEditPd);
+
+    useEffect(() => {
+        if (!open || !prescription) return;
+        const pd = getPdFromPrescription(prescription);
+        setPdSingle(pd.pdSingle ?? pd.pdRight ?? "");
+        setPdRight(pd.pdRight ?? "");
+        setPdLeft(pd.pdLeft ?? "");
+        setPdType(pd.isDual ? "dual" : "single");
+        setEditingPd(false);
+    }, [open, prescription]);
+
     if (!open || !prescription) return null;
 
     // Merge top-level and nested data to ensure we capture all fields (image_url, PDs, etc.)
@@ -21,6 +59,9 @@ const ManualPrescriptionModal: React.FC<ManualPrescriptionModalProps> = ({
         ...prescription,
         ...(prescription.prescriptionDetails || prescription.data || {})
     };
+
+    const currentPd = getPdFromPrescription(prescription);
+    const hasAnyPd = !!(currentPd.pdSingle || currentPd.pdRight || currentPd.pdLeft);
 
     const isPdf = details.image_url?.toLowerCase().endsWith('.pdf') || details.fileType === 'application/pdf';
 
@@ -84,19 +125,104 @@ const ManualPrescriptionModal: React.FC<ManualPrescriptionModalProps> = ({
                                 )}
                             </div>
 
-                            {/* PD Display for Upload */}
+                            {/* PD Display for Upload - show from all possible paths; allow Add/Edit when cartId + onSavePD */}
                             <div className="bg-gray-50 p-4 rounded-lg">
                                 <p className="text-xs font-bold text-gray-500 uppercase mb-1">
                                     Pupillary Distance (PD)
                                 </p>
-                                {details.pdType === "Dual" || (details.pdRight && details.pdLeft) || (details.right && details.left) ? (
-                                    <p className="text-base font-medium text-[#1F1F1F]">
-                                        R: {details.pdRight || details.right} / L: {details.pdLeft || details.left}
-                                    </p>
+                                {!editingPd ? (
+                                    <>
+                                        {currentPd.isDual && (currentPd.pdRight || currentPd.pdLeft) ? (
+                                            <p className="text-base font-medium text-[#1F1F1F]">
+                                                R: {currentPd.pdRight} / L: {currentPd.pdLeft}
+                                            </p>
+                                        ) : currentPd.pdSingle ? (
+                                            <p className="text-base font-medium text-[#1F1F1F]">
+                                                {currentPd.pdSingle}
+                                            </p>
+                                        ) : (
+                                            <p className="text-base font-medium text-[#1F1F1F]">
+                                                Not provided
+                                            </p>
+                                        )}
+                                        {canEditPd && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditingPd(true)}
+                                                className="mt-2 text-sm text-[#025048] hover:text-[#013a34] font-medium underline"
+                                            >
+                                                {hasAnyPd ? "Edit PD" : "Add PD"}
+                                            </button>
+                                        )}
+                                    </>
                                 ) : (
-                                    <p className="text-base font-medium text-[#1F1F1F]">
-                                        {details.pdSingle || details.single || "Not provided"}
-                                    </p>
+                                    <div className="space-y-3 mt-2">
+                                        <div className="flex gap-2 items-center">
+                                            <label className="flex items-center gap-1">
+                                                <input type="radio" checked={pdType === "single"} onChange={() => setPdType("single")} />
+                                                <span className="text-sm">Single</span>
+                                            </label>
+                                            <label className="flex items-center gap-1">
+                                                <input type="radio" checked={pdType === "dual"} onChange={() => setPdType("dual")} />
+                                                <span className="text-sm">Dual (R/L)</span>
+                                            </label>
+                                        </div>
+                                        {pdType === "single" ? (
+                                            <input
+                                                type="text"
+                                                placeholder="e.g. 63"
+                                                value={pdSingle}
+                                                onChange={(e) => setPdSingle(e.target.value)}
+                                                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                                            />
+                                        ) : (
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    placeholder="R"
+                                                    value={pdRight}
+                                                    onChange={(e) => setPdRight(e.target.value)}
+                                                    className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    placeholder="L"
+                                                    value={pdLeft}
+                                                    onChange={(e) => setPdLeft(e.target.value)}
+                                                    className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm"
+                                                />
+                                            </div>
+                                        )}
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                disabled={savingPd || (pdType === "single" ? !pdSingle.trim() : !pdRight.trim() || !pdLeft.trim())}
+                                                onClick={async () => {
+                                                    setSavingPd(true);
+                                                    try {
+                                                        if (pdType === "single") {
+                                                            await onSavePD?.({ pdSingle: pdSingle.trim() });
+                                                        } else {
+                                                            await onSavePD?.({ pdRight: pdRight.trim(), pdLeft: pdLeft.trim() });
+                                                        }
+                                                        setEditingPd(false);
+                                                    } finally {
+                                                        setSavingPd(false);
+                                                    }
+                                                }}
+                                                className="px-3 py-1.5 bg-[#025048] text-white text-sm font-medium rounded hover:bg-[#013a34] disabled:opacity-50"
+                                            >
+                                                {savingPd ? "Saving…" : "Save PD"}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditingPd(false)}
+                                                className="px-3 py-1.5 border border-gray-300 text-sm rounded"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
                                 )}
                             </div>
                         </div>

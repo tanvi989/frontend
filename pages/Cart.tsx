@@ -41,6 +41,8 @@ const Cart: React.FC = () => {
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [selectedCartId, setSelectedCartId] = useState<number | null>(null);
   const pendingDeleteCartIdRef = useRef<number | null>(null);
+  const hasAutoAppliedCouponRef = useRef(false);
+  const isAutoApplyingCouponRef = useRef(false);
   const [viewPrescription, setViewPrescription] = useState<any>(null);
   const [couponCode, setCouponCode] = useState("");
   const [shippingMethod, setShippingMethod] = useState<string>("standard");
@@ -192,48 +194,61 @@ const Cart: React.FC = () => {
     }
 
     try {
-      // 1. Existing direct link
+      // Get list of active cart IDs to filter out old order prescriptions
+      const activeCartIds = new Set(cartItems.map(ci => String(ci.cart_id)));
+
+      // 1. Existing direct link - but validate it's actually linked to this cart item
       if (item.prescription) {
-        console.log("✅ Found direct prescription");
-        return item.prescription;
+        // Check if prescription has a cartId that matches this cart item
+        const presCartId = item.prescription?.associatedProduct?.cartId || 
+                           item.prescription?.data?.associatedProduct?.cartId ||
+                           item.prescription?.cartId ||
+                           item.prescription?.data?.cartId;
+        
+        // Only return if cartId matches AND is in active cart
+        if (presCartId && String(presCartId) === String(item.cart_id) && activeCartIds.has(String(presCartId))) {
+          console.log("✅ Found valid direct prescription");
+          return item.prescription;
+        } else {
+          console.log("⚠️ Cart item has prescription but cartId mismatch or not in active cart, ignoring:", {
+            presCartId,
+            currentCartId: item.cart_id,
+            inActiveCart: presCartId ? activeCartIds.has(String(presCartId)) : false
+          });
+          // Don't return, continue to search for valid prescription
+        }
       }
 
       // 2. Try to find link via associatedProduct.cartId (matches DB schema)
-      // Check nested data structure from MongoDB
+      // IMPORTANT: Only match prescriptions for cart items that are currently in the active cart
       const matchByCartId = userPrescriptions.find((p: any) => {
         if (!p) return false;
 
-        // Log what we're checking
+        // Get cartId from various possible locations
         const rootCartId = p.associatedProduct?.cartId;
         const dataCartId = p.data?.associatedProduct?.cartId;
-        console.log(
-          "🔍 Prescription check - Root cartId:",
-          rootCartId,
-          "Data cartId:",
-          dataCartId,
-          "Looking for:",
-          item.cart_id
-        );
+        const directCartId = p.data?.cartId || p.cartId;
+        
+        // Check if this prescription's cartId matches the current item's cartId
+        const matchesCurrentItem = 
+          (rootCartId && String(rootCartId) === String(item.cart_id)) ||
+          (dataCartId && String(dataCartId) === String(item.cart_id)) ||
+          (directCartId && String(directCartId) === String(item.cart_id));
 
-        // Check root level associatedProduct
-        const rootLink =
-          p.associatedProduct?.cartId &&
-          String(p.associatedProduct.cartId) === String(item.cart_id);
-        if (rootLink) {
-          console.log("✅ MATCH at root level!");
-          return true;
+        // Only return true if it matches AND the cartId is in the active cart
+        if (matchesCurrentItem) {
+          const prescriptionCartId = rootCartId || dataCartId || directCartId;
+          if (prescriptionCartId && activeCartIds.has(String(prescriptionCartId))) {
+            console.log("✅ MATCH found and cartId is in active cart!");
+            return true;
+          } else {
+            console.log("⚠️ Prescription matches but cartId is NOT in active cart (old order)");
+            return false;
+          }
         }
-
-        // Check nested data level associatedProduct
-        const pData = p.data;
-        const dataLink =
-          pData?.associatedProduct?.cartId &&
-          String(pData.associatedProduct.cartId) === String(item.cart_id);
-        if (dataLink) {
-          console.log("✅ MATCH at data level!");
-        }
-        return dataLink;
+        return false;
       });
+      
       if (matchByCartId) {
         console.log("✅ Found prescription match via cartId:", matchByCartId);
         return matchByCartId.data || matchByCartId;
@@ -241,13 +256,18 @@ const Cart: React.FC = () => {
         console.log("❌ No cartId match found");
       }
 
-      // 3. Fallback: Try prescription_id match
+      // 3. Fallback: Try prescription_id match (only if prescription is linked to active cart)
       const pId = (item as any).prescription_id || (item as any).prescriptionId;
       if (pId && userPrescriptions.length > 0) {
-        const match = userPrescriptions.find(
-          (p: any) =>
-            p && (String(p._id) === String(pId) || String(p.id) === String(pId))
-        );
+        const match = userPrescriptions.find((p: any) => {
+          if (!p) return false;
+          const matchesId = String(p._id) === String(pId) || String(p.id) === String(pId);
+          if (!matchesId) return false;
+          
+          // Verify this prescription is linked to an active cart item
+          const pCartId = p.associatedProduct?.cartId || p.data?.associatedProduct?.cartId || p.data?.cartId || p.cartId;
+          return pCartId && activeCartIds.has(String(pCartId));
+        });
         if (match) return match.data || match;
       }
     } catch (err) {
@@ -284,18 +304,34 @@ const Cart: React.FC = () => {
   // Coupon Mutations
   const { mutate: applyCouponMutation } = useMutation({
     mutationFn: applyCoupon,
+    onMutate: async (code: string) => {
+      if ((code || "").trim().toUpperCase() !== "LAUNCH50") return;
+      await queryClient.cancelQueries({ queryKey: ["cart"] });
+      const previous = queryClient.getQueryData(["cart"]);
+      queryClient.setQueryData(["cart"], (old: any) => {
+        if (!old || !old.cart) return old;
+        return { ...old, coupon: { code: "LAUNCH50" } };
+      });
+      return { previous };
+    },
     onSuccess: (res: any) => {
       if (res.data.success) {
         refetch();
         setCouponCode("");
         setIsCoupoenApplied(true);
-        alert("Coupon applied successfully!");
+        if (!isAutoApplyingCouponRef.current) {
+          alert("Coupon applied successfully!");
+        }
+        isAutoApplyingCouponRef.current = false;
       } else {
+        isAutoApplyingCouponRef.current = false;
         alert(res.data.message || "Failed to apply coupon");
         setIsCoupoenApplied(false);
       }
     },
-    onError: (err: any) => {
+    onError: (err: any, _code, context: any) => {
+      isAutoApplyingCouponRef.current = false;
+      if (context?.previous) queryClient.setQueryData(["cart"], context.previous);
       alert(err.response?.data?.detail || "Failed to apply coupon");
     },
   });
@@ -374,9 +410,22 @@ const Cart: React.FC = () => {
 
   const handleApplyCoupon = () => {
     if (couponCode.trim()) {
-      applyCouponMutation(couponCode);
+      applyCouponMutation(couponCode.trim().toUpperCase());
     }
   };
+
+  // Auto-apply default coupon LAUNCH50 when cart has items and no coupon (default applied for all users)
+  useEffect(() => {
+    if (hasAutoAppliedCouponRef.current) return;
+    const cart = cartResponse?.cart;
+    const hasItems = Array.isArray(cart) && cart.length > 0;
+    const noCoupon = !cartResponse?.coupon;
+    if (hasItems && noCoupon) {
+      hasAutoAppliedCouponRef.current = true;
+      isAutoApplyingCouponRef.current = true;
+      applyCouponMutation("LAUNCH50");
+    }
+  }, [cartResponse?.cart, cartResponse?.coupon]);
 
   const handleRemoveCoupon = () => {
     removeCouponMutation();

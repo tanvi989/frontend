@@ -4,7 +4,6 @@ import { toast } from 'sonner';
 import type { CapturedData, FaceLandmarks } from '@/types/face-validation';
 import { parseDimensionsString } from '@/utils/frameDimensions';
 import { getVtoImageUrl } from '@/api/retailerApis';
-import axios from '@/api/axiosConfig';
 import { computeFrameOverlayTransform } from '@/utils/frameOverlayTransform';
 import { Share2, Download, Copy } from 'lucide-react';
 
@@ -173,12 +172,45 @@ export function VtoProductOverlay({
 
   const filename = `vto-${productName.replace(/\s+/g, '-')}.png`;
 
-  const captureImage = async (): Promise<Blob | null> => {
-    if (!containerRef.current) return null;
+  /** Compute frame transform using exact container and image dimensions (for capture; avoids stale state). */
+  const getFrameTransformForCapture = (
+    containerW: number,
+    containerH: number,
+    naturalW: number,
+    naturalH: number
+  ): { displayX: number; displayY: number; scale: number; rotation: number } | null => {
+    const { landmarks, measurements, cropRect } = captureSession;
+    if (!landmarks || !(landmarks as FaceLandmarks).leftEye || !(landmarks as FaceLandmarks).rightEye) return null;
+    const lm = landmarks as FaceLandmarks;
+    const landmarksForImage = cropRect ? landmarksToCropped(lm, cropRect) : lm;
+    const faceWidthMm = measurements?.face_width ?? 0;
+    if (containerW <= 0 || containerH <= 0 || faceWidthMm <= 0) return null;
+    const dims = parseDimensionsString(productDimensions);
+    const transform = computeFrameOverlayTransform(
+      dims.width,
+      dims.lensHeight,
+      landmarksForImage,
+      faceWidthMm,
+      { width: containerW, height: containerH },
+      { width: naturalW, height: naturalH },
+      true
+    );
+    if (!transform) return null;
+    return {
+      displayX: transform.midX + adj.offsetX,
+      displayY: transform.midY + adj.offsetY,
+      scale: transform.scaleFactor * adj.scaleAdjust,
+      rotation: transform.angleRad + (adj.rotationAdjust * Math.PI) / 180,
+    };
+  };
+
+  const captureImage = async (): Promise<{ blob: Blob | null; frameDrawn: boolean }> => {
+    const noFrame = { blob: null as Blob | null, frameDrawn: false };
+    if (!containerRef.current) return noFrame;
     const rect = containerRef.current.getBoundingClientRect();
     const w = Math.round(rect.width);
     const h = Math.round(rect.height);
-    if (w <= 0 || h <= 0) return null;
+    if (w <= 0 || h <= 0) return noFrame;
 
     const scale = 2;
     const cw = w * scale;
@@ -186,7 +218,7 @@ export function VtoProductOverlay({
 
     // Load face image
     const faceData = captureSession.processedImageDataUrl;
-    if (!faceData) return null;
+    if (!faceData) return noFrame;
 
     const faceImg = new Image();
     await new Promise<void>((resolve, reject) => {
@@ -196,18 +228,19 @@ export function VtoProductOverlay({
       if (faceImg.complete) resolve();
     });
 
-    // Create canvas and draw face (object-contain style)
+    const fw = faceImg.naturalWidth;
+    const fh = faceImg.naturalHeight;
+
+    // Create canvas and draw face (object-contain style) — same as on-screen
     const canvas = document.createElement('canvas');
     canvas.width = cw;
     canvas.height = ch;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
+    if (!ctx) return noFrame;
 
     ctx.fillStyle = '#f3f4f6';
     ctx.fillRect(0, 0, cw, ch);
 
-    const fw = faceImg.naturalWidth;
-    const fh = faceImg.naturalHeight;
     const scaleFace = Math.min(cw / fw, ch / fh);
     const drawW = fw * scaleFace;
     const drawH = fh * scaleFace;
@@ -215,52 +248,86 @@ export function VtoProductOverlay({
     const offsetY = (ch - drawH) / 2;
     ctx.drawImage(faceImg, 0, 0, fw, fh, offsetX, offsetY, drawW, drawH);
 
-    // Fetch and draw VTO frame on top
+    // Transform for frame uses same container size as this canvas (w, h) and face natural size
+    const transform = getFrameTransformForCapture(w, h, fw, fh);
+
+    // Load frame: try same-origin (proxy) first, then direct backend URL if env set (e.g. local dev)
+    let frameImg: HTMLImageElement | null = null;
+    const tryLoadFrame = async (url: string): Promise<boolean> => {
+      const res = await fetch(url);
+      if (!res.ok) return false;
+      const blob = await res.blob();
+      if (blob.size === 0) return false;
+      frameImg = new Image();
+      await new Promise<void>((resolve, reject) => {
+        frameImg!.onload = () => resolve();
+        frameImg!.onerror = () => reject(new Error('Frame load failed'));
+        frameImg!.src = URL.createObjectURL(blob);
+        if (frameImg!.complete) resolve();
+      });
+      return frameImg!.complete && frameImg!.naturalWidth > 0;
+    };
     try {
-      const frameRes = await axios.get(`/api/v1/vto-frame/${productSkuid}`, { responseType: 'blob' });
-      if (frameRes?.data instanceof Blob) {
-        const frameImg = new Image();
-        await new Promise<void>((resolve, reject) => {
-          frameImg.onload = () => resolve();
-          frameImg.onerror = () => reject(new Error('Frame load failed'));
-          frameImg.src = URL.createObjectURL(frameRes.data);
-          if (frameImg.complete) resolve();
-        });
-
-        const transform = getFrameTransform();
-        if (transform) {
-          const { displayX, displayY, scale: frameScale, rotation } = transform;
-          const sx = displayX * scale;
-          const sy = displayY * scale;
-          const fw2 = frameImg.naturalWidth;
-          const fh2 = frameImg.naturalHeight;
-          const dw = fw2 * frameScale * scale;
-          const dh = fh2 * frameScale * scale;
-
-          ctx.save();
-          ctx.translate(sx, sy);
-          ctx.rotate(rotation);
-          ctx.drawImage(frameImg, 0, 0, fw2, fh2, -dw / 2, -dh / 2, dw, dh);
-          ctx.restore();
+      const proxyUrl = `${window.location.origin}/api/v1/vto-frame/${productSkuid}`;
+      let loaded = await tryLoadFrame(proxyUrl);
+      if (!loaded) {
+        if (frameImg?.src.startsWith('blob:')) URL.revokeObjectURL(frameImg.src);
+        frameImg = null;
+        const apiBase = (import.meta as { env?: { VITE_API_TARGET?: string } }).env?.VITE_API_TARGET?.trim();
+        if (apiBase) {
+          const base = apiBase.replace(/\/$/, '');
+          loaded = await tryLoadFrame(`${base}/api/v1/vto-frame/${productSkuid}`);
         }
-
-        URL.revokeObjectURL(frameImg.src);
+        if (!loaded) {
+          // Fallback: same URL as display — {base}/{skuid}_VTO.png (skuid + VTO)
+          const vtoImageUrl = getVtoImageUrl(productSkuid);
+          loaded = await tryLoadFrame(vtoImageUrl);
+        }
+        if (!loaded) frameImg = null;
       }
     } catch {
-      // Frame fetch failed - still return face-only
+      frameImg = null;
     }
 
-    return new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b), 'image/png', 0.95));
+    // Merge: draw VTO frame on top of face so share/download gets face + frame
+    const FRAME_PNG_BASE_WIDTH = 400;
+    const frameLoaded = frameImg && frameImg.complete && frameImg.naturalWidth > 0;
+    if (frameLoaded && frameImg) {
+      const fw2 = frameImg.naturalWidth;
+      const fh2 = frameImg.naturalHeight;
+      const frameScale = transform?.scale ?? 0.35;
+      const displayX = transform?.displayX ?? w / 2;
+      const displayY = transform?.displayY ?? h / 2;
+      const rotation = transform?.rotation ?? 0;
+      const displayW = FRAME_PNG_BASE_WIDTH * frameScale * scale;
+      const displayH = displayW * (fh2 / fw2);
+      const sx = displayX * scale;
+      const sy = displayY * scale;
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(rotation);
+      ctx.drawImage(frameImg, 0, 0, fw2, fh2, -displayW / 2, -displayH / 2, displayW, displayH);
+      ctx.restore();
+      if (frameImg.src.startsWith('blob:')) URL.revokeObjectURL(frameImg.src);
+    }
+    const frameDrawn = frameLoaded;
+
+    return new Promise<{ blob: Blob | null; frameDrawn: boolean }>((resolve) =>
+      canvas.toBlob((b) => resolve({ blob: b, frameDrawn }), 'image/png', 0.95)
+    );
   };
 
   const handleShareButtonClick = async () => {
     setSharePopupLoading(true);
     setSharePopupOpen(false);
-    const blob = await captureImage();
+    const result = await captureImage();
     setSharePopupLoading(false);
-    if (blob) {
-      setCapturedBlob(blob);
+    if (result.blob) {
+      setCapturedBlob(result.blob);
       setSharePopupOpen(true);
+      if (!result.frameDrawn) {
+        toast.info('Image saved without frame. Ensure backend is running and frame is available.');
+      }
     } else {
       toast.error('Could not capture image');
     }

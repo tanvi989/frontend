@@ -13,6 +13,7 @@ const TABS = [
   "SPH",
   "CYL",
   "AXIS",
+  "ADD",
   "PRISM",
 ];
 
@@ -441,6 +442,35 @@ const PrescriptionHelpModal: React.FC<PrescriptionHelpModalProps> = ({
               </p>
               <PrescriptionTable activeTab={activeTab} />
             </>
+          )}
+
+          {activeTab === "ADD" && (
+            <div className="flex flex-col items-start justify-start w-full max-w-3xl text-left">
+              <h3 className="text-lg font-bold text-[#1F1F1F] mb-6 uppercase tracking-wide text-left">
+                Reading/Addition Power
+              </h3>
+              <p className="text-sm text-gray-700 mb-6 leading-relaxed font-medium text-left">
+                Additional Power, also called ADD, is used for near vision correction. It is usually prescribed for people who need help seeing close objects, like reading or using a phone.
+              </p>
+              <div className="w-full text-left mb-6">
+                <h4 className="text-[#1F1F1F] font-bold text-sm uppercase tracking-wide mb-3 text-left">
+                  You should only select this if:
+                </h4>
+                <ul className="text-sm text-gray-700 space-y-2 list-none pl-0 text-left">
+                  <li className="flex gap-2 text-left">
+                    <span className="text-[#6B8E23] font-bold shrink-0">•</span>
+                    <span>Your prescription explicitly mentions Reading/Additional Power</span>
+                  </li>
+                  <li className="flex gap-2 text-left">
+                    <span className="text-[#6B8E23] font-bold shrink-0">•</span>
+                    <span>Or you have been advised to use multifocal contact lenses</span>
+                  </li>
+                </ul>
+              </div>
+              <p className="text-sm text-gray-700 leading-relaxed font-medium text-left">
+                If your prescription does not include Reading/Additional Power, select None.
+              </p>
+            </div>
           )}
 
           {activeTab === "PRISM" && (

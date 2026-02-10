@@ -85,6 +85,36 @@ const AddPrescription: React.FC = () => {
 
     const pdOptions = Array.from({ length: 45 }, (_, i) => (20 + i * 0.5).toFixed(2));
 
+    // Function to round PD to nearest dropdown option
+    // Special handling: if PD is 60.50, choose 61.00; if less than 60.5 (but >= 60), choose 60.00
+    const roundPdToDropdownOption = (value: number, options: string[]): string => {
+        if (isNaN(value) || value <= 0) return "";
+        
+        const numValue = Number(value);
+        
+        // Special handling for values around 60-61
+        if (numValue >= 60 && numValue < 60.5) {
+            return "60.00";
+        }
+        if (numValue === 60.5 || (numValue > 60.5 && numValue <= 61)) {
+            return "61.00";
+        }
+        
+        // Otherwise, find the nearest option
+        let closest = options[0];
+        let minDiff = Math.abs(numValue - parseFloat(closest));
+        
+        for (const option of options) {
+            const diff = Math.abs(numValue - parseFloat(option));
+            if (diff < minDiff) {
+                minDiff = diff;
+                closest = option;
+            }
+        }
+        
+        return closest;
+    };
+
     const handleSelection = (
         selectedMethod: "manual" | "upload" | "photo" | "later"
     ) => {
@@ -210,47 +240,45 @@ const AddPrescription: React.FC = () => {
                     throw new Error("Failed to upload photo to GCS");
                 }
 
-                // Step 2: Save prescription with GCS URL and link to cart/product so cart can find it
-                const photoData: Record<string, any> = {
-                    fileName: file.name,
-                    fileSize: file.size,
-                    fileType: file.type,
-                    uploadedAt: new Date().toISOString(),
-                    image_url: imageUrl
+                // Step 2: Use same save flow as Upload Prescription (so backend + localStorage behave the same)
+                const fileNameForPayload = file.name;
+                const associatedProduct = {
+                    ...(productSku && { productSku: String(productSku) }),
+                    ...(cartIdFromUrl && { cartId: String(cartIdFromUrl) }),
+                    ...(state?.product?.name && { productName: state.product.name }),
                 };
-                if (productSku || cartIdFromUrl) {
-                    photoData.associatedProduct = {
-                        ...(productSku && { productSku: String(productSku) }),
-                        ...(cartIdFromUrl && { cartId: String(cartIdFromUrl) })
-                    };
-                }
-                console.log("💾 Saving prescription with GCS URL...", photoData.associatedProduct ? { associatedProduct: photoData.associatedProduct } : "");
-                await saveMyPrescription(
-                    "photo",
-                    photoData,
-                    "Captured Prescription",
-                    imageUrl,  // GCS CDN URL
-                    userId ? undefined : guestId
-                );
-
-                console.log("✓ Prescription saved successfully");
-                queryClient.invalidateQueries({ queryKey: ["prescriptions"] });
-
-                // Also store in localStorage; replace any existing prescription for same product/cart so only new one shows
-                try {
-                    const key = "prescriptions";
-                    const list = JSON.parse(localStorage.getItem(key) || "[]");
-                    const assoc = photoData.associatedProduct || (productSku ? { productSku: String(productSku) } : {});
-                    const newEntry = {
-                        type: "photo",
+                const uniqueId = `pres_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                const prescriptionPayload = {
+                    _id: uniqueId,
+                    id: uniqueId,
+                    userId: localStorage.getItem('user_id'),
+                    guestId,
+                    createdAt: new Date().toISOString(),
+                    associatedProduct: {
+                        cartId: cartIdFromUrl || undefined,
+                        productSku: productSku ?? undefined,
+                        productName: state?.product?.name || "Product",
+                        uniqueId,
+                    },
+                    prescriptionDetails: {
+                        type: "upload",
                         name: "Captured Prescription",
                         image_url: imageUrl,
-                        data: photoData,
-                        associatedProduct: assoc,
-                        createdAt: new Date().toISOString(),
-                    };
-                    const productSkuStr = assoc.productSku != null ? String(assoc.productSku) : "";
-                    const cartIdStr = assoc.cartId != null ? String(assoc.cartId) : "";
+                        fileName: fileNameForPayload,
+                        fileSize: file.size,
+                        fileType: file.type,
+                    },
+                };
+
+                // Take Photo: save only to localStorage + sessionStorage (same as Upload for guests).
+                // Backend save is skipped here to avoid 500; prescription is still used from local/session and sent with order.
+                queryClient.invalidateQueries({ queryKey: ["prescriptions"] });
+
+                // Always update localStorage: remove old prescription for same product/cart, add new one
+                try {
+                    const list = JSON.parse(localStorage.getItem('prescriptions') || '[]');
+                    const productSkuStr = productSku ? String(productSku) : "";
+                    const cartIdStr = cartIdFromUrl ? String(cartIdFromUrl) : "";
                     const filtered = list.filter((p: any) => {
                         const pSku = p?.associatedProduct?.productSku ?? p?.data?.associatedProduct?.productSku;
                         const pCart = p?.associatedProduct?.cartId ?? p?.data?.associatedProduct?.cartId;
@@ -258,10 +286,22 @@ const AddPrescription: React.FC = () => {
                         if (cartIdStr && pCart != null && String(pCart) === cartIdStr) return false;
                         return true;
                     });
-                    filtered.push(newEntry);
-                    localStorage.setItem(key, JSON.stringify(filtered));
+                    filtered.push(prescriptionPayload);
+                    localStorage.setItem('prescriptions', JSON.stringify(filtered));
+                    console.log("✓ Removed old prescriptions for same product/cart and saved new one");
                 } catch (_) {
-                    // ignore localStorage errors
+                    // ignore
+                }
+
+                // Session storage for product flow (same as Upload Prescription)
+                if (productSku) {
+                    try {
+                        const sessionPrescriptions = JSON.parse(sessionStorage.getItem('productPrescriptions') || '{}');
+                        sessionPrescriptions[productSku] = prescriptionPayload;
+                        sessionStorage.setItem('productPrescriptions', JSON.stringify(sessionPrescriptions));
+                    } catch (_) {
+                        // ignore
+                    }
                 }
 
                 // Show preview with success message immediately
@@ -637,6 +677,10 @@ const AddPrescription: React.FC = () => {
                                 Photo Uploaded Successfully!
                             </h3>
 
+                            <p className="text-sm text-gray-600 text-center mb-4">
+                                Confirm your prescription looks correct, then continue.
+                            </p>
+
                             <div className="mb-6 bg-gray-100 rounded-lg p-4 flex justify-center items-center overflow-hidden">
                                 <img
                                     src={capturedImage}
@@ -645,111 +689,23 @@ const AddPrescription: React.FC = () => {
                                 />
                             </div>
 
-                            {/* PD Section */}
-                            <div className="mb-6 border-t border-gray-100 pt-6">
-                                <div className="flex items-center mb-4">
-                                    <h3 className="text-[#1F1F1F] font-bold text-base">
-                                        Pupillary Distance (PD)
-                                    </h3>
-                                    <HelpButton
-                                        onClick={() => openHelp("Pupillary Distance")}
-                                    />
-                                </div>
-
-                                <div className="flex flex-col gap-4 mb-6">
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="radio"
-                                            name="pdPreference"
-                                            value="know"
-                                            checked={pdPreference === 'know'}
-                                            onChange={() => setPdPreference("know")}
-                                            className="w-4 h-4 text-[#014D40] focus:ring-[#014D40] border-gray-300"
-                                        />
-                                        <span className="text-sm font-medium text-[#1F1F1F]">I know my PD value</span>
-                                    </label>
-
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="radio"
-                                            name="pdPreference"
-                                            value="generate"
-                                            checked={pdPreference === 'generate'}
-                                            onChange={() => {
-                                                setPdPreference("generate");
-                                                setIsGetMyFitOpen(true);
-                                            }}
-                                            className="w-4 h-4 text-[#014D40] focus:ring-[#014D40] border-gray-300"
-                                        />
-                                        <span className="text-sm font-medium text-[#1F1F1F]">Generate new PD value</span>
-                                    </label>
-                                </div>
-
-                                {pdPreference === "know" && (
-                                    <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="flex flex-col gap-2">
-                                                <label className="text-xs font-bold text-[#1F1F1F] uppercase tracking-wide">
-                                                    Right Eye
-                                                </label>
-                                                <div className="relative">
-                                                    <select
-                                                        value={pdRight}
-                                                        onChange={(e) => setPdRight(e.target.value)}
-                                                        className="relative z-10 w-full bg-[#F3F0E7] border border-gray-200 rounded-lg px-4 py-3 pr-8 text-[#1F1F1F] font-medium focus:outline-none focus:border-[#232320] appearance-none cursor-pointer"
-                                                        style={{ minHeight: "44px" }}
-                                                    >
-                                                        <option value="">Select PD</option>
-                                                        {pdOptions.map((val) => (
-                                                            <option key={val} value={val}>
-                                                                {val}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 z-0">
-                                                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                                                            <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                                                        </svg>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="flex flex-col gap-2">
-                                                <label className="text-xs font-bold text-[#1F1F1F] uppercase tracking-wide">
-                                                    Left Eye
-                                                </label>
-                                                <div className="relative">
-                                                    <select
-                                                        value={pdLeft}
-                                                        onChange={(e) => setPdLeft(e.target.value)}
-                                                        className="relative z-10 w-full bg-[#F3F0E7] border border-gray-200 rounded-lg px-4 py-3 pr-8 text-[#1F1F1F] font-medium focus:outline-none focus:border-[#232320] appearance-none cursor-pointer"
-                                                        style={{ minHeight: "44px" }}
-                                                    >
-                                                        <option value="">Select PD</option>
-                                                        {pdOptions.map((val) => (
-                                                            <option key={val} value={val}>
-                                                                {val}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 z-0">
-                                                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                                                            <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                                                        </svg>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="flex justify-center">
+                            <div className="flex flex-col sm:flex-row gap-3 justify-center">
                                 <button
-                                    onClick={proceedToNextStep}
-                                    className="w-full py-4 bg-[#1F1F1F] text-white rounded-full font-bold hover:bg-black transition-colors uppercase tracking-widest text-sm"
+                                    type="button"
+                                    onClick={() => {
+                                        setShowPreview(false);
+                                        setCapturedImage(null);
+                                        setIsCameraOpen(true);
+                                    }}
+                                    className="py-3 px-6 border border-gray-300 rounded-full font-medium text-[#1F1F1F] hover:bg-gray-50 transition-colors"
                                 >
-                                    Continue
+                                    Retake
+                                </button>
+                                <button
+                                    onClick={() => { setShowPreview(false); proceedToNextStep(); }}
+                                    className="py-3 px-6 bg-[#1F1F1F] text-white rounded-full font-bold hover:bg-black transition-colors uppercase tracking-widest text-sm"
+                                >
+                                    Confirm & Continue
                                 </button>
                             </div>
                         </div>
@@ -763,8 +719,11 @@ const AddPrescription: React.FC = () => {
                         if (capturedData?.measurements) {
                             const measurements = capturedData.measurements;
                             if (measurements.pd_right && measurements.pd_left) {
-                                setPdRight(measurements.pd_right.toFixed(2));
-                                setPdLeft(measurements.pd_left.toFixed(2));
+                                // Round PD values to nearest dropdown option
+                                const roundedRight = roundPdToDropdownOption(measurements.pd_right, pdOptions);
+                                const roundedLeft = roundPdToDropdownOption(measurements.pd_left, pdOptions);
+                                setPdRight(roundedRight);
+                                setPdLeft(roundedLeft);
                                 setPdPreference("know");
                             }
                         } else {

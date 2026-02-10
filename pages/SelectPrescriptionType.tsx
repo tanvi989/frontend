@@ -12,7 +12,7 @@ const SelectPrescriptionType: React.FC = () => {
     null
   );
   const [expanded, setExpanded] = useState(false);
-  const [selectedOption, setSelectedOption] = useState<"advanced" | "standard" | null>(null);
+  const [selectedOption, setSelectedOption] = useState<"advanced" | "standard" | "precision" | null>(null);
 
   // Reset to unexpanded view when navigating to this page
   useEffect(() => {
@@ -40,19 +40,20 @@ const SelectPrescriptionType: React.FC = () => {
     setExpanded(true);
   };
 
-  const handleMobileOptionSelect = (option: "advanced" | "standard") => {
-    if (id) savePrescriptionType(id, { lensType: "progressive", prescriptionTier: option });
+  const handleMobileOptionSelect = (option: "advanced" | "standard" | "precision") => {
+    if (id) savePrescriptionType(id, { lensType: "progressive", prescriptionTier: option === "precision" ? "advanced" : option });
     navigate(`/product/${id}/select-prescription-source`, {
-      state: { ...state, lensType: "progressive", lensOption: option },
+      state: { ...state, lensType: "progressive", lensOption: option === "precision" ? "advanced" : option, precisionPlus: option === "precision" },
     });
   };
 
   const handleContinue = () => {
     if (!selectedType) return;
     if (expanded && !selectedOption) return;
-    if (id) savePrescriptionType(id, { lensType: selectedType, prescriptionTier: selectedOption ?? undefined });
+    const prescriptionTier = selectedOption === "precision" ? "advanced" : selectedOption ?? undefined;
+    if (id) savePrescriptionType(id, { lensType: selectedType, prescriptionTier });
     navigate(`/product/${id}/select-prescription-source`, {
-      state: { ...state, lensType: selectedType, lensOption: selectedOption },
+      state: { ...state, lensType: selectedType, lensOption: selectedOption === "precision" ? "advanced" : selectedOption, precisionPlus: selectedOption === "precision" },
     });
   };
 
@@ -121,7 +122,7 @@ const SelectPrescriptionType: React.FC = () => {
                     </div>
                     <div>
                       <h3 className="text-base md:text-lg font-bold text-[#1F1F1F]">
-                        Progressive Lenses
+                        Progressive / varifocal lenses
                       </h3>
                       <p className="text-xs md:text-sm text-gray-600 leading-snug md:leading-normal">
                         <span className="md:hidden">Corrects for near, mid and far distance with a smooth transition.</span>
@@ -253,9 +254,69 @@ const SelectPrescriptionType: React.FC = () => {
           <div className="grid gap-5 mb-12 max-w-[900px] mx-auto grid-cols-1">
             <div className="w-full">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Advanced & Precision+ Option */}
+                {/* Precision+ Options - First */}
                 <div
-                  onClick={() => handleMobileOptionSelect("advanced")}
+                  onClick={() => {
+                    setSelectedOption("precision");
+                    if (window.innerWidth < 768) {
+                      handleMobileOptionSelect("precision");
+                    }
+                  }}
+                  className={`flex flex-col p-5 rounded-3xl border-2 cursor-pointer
+                    ${selectedOption === "precision"
+                      ? "border-green-600 shadow-md"
+                      : "border-gray-400"
+                    }`}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex-1 pr-2">
+                      <p className="text-xs font-semibold bg-black text-white px-2 py-1 rounded mb-1 uppercase tracking-wider inline-block">Recommended for Repeat Multifocal Users</p>
+                      <h3 className="text-lg md:text-base font-bold text-[#1F1F1F]">
+                        Precision+ Options
+                      </h3>
+                    </div>
+                    {/* Arrow (Mobile) or Radio (Desktop) */}
+                    <div className="md:hidden flex items-center justify-center">
+                      <svg width="8" height="14" viewBox="0 0 8 14" fill="none">
+                        <path d="M1 13L7 7L1 1" stroke="#E94D37" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </div>
+                    <div className="hidden md:block">
+                      {selectedOption === "precision" ? (
+                        <div className="w-6 h-6 rounded-full bg-green-600 border-2 border-green-600 flex items-center justify-center shrink-0">
+                          <svg width="12" height="10" viewBox="0 0 12 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M1 5.2L4.2 8.4L11 1" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </div>
+                      ) : (
+                        <div className="w-6 h-6 rounded-full border-2 border-gray-400 shrink-0" />
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-4 md:gap-5 items-center md:items-start">
+                    <img
+                      src="/focal1.png"
+                      alt="Precision+ Options"
+                      className="w-24 md:w-28 h-24 md:h-auto rounded-full md:rounded-2xl shrink-0 object-cover border border-gray-200 md:border-none"
+                    />
+                    <div className="text-sm text-[#1F1F1F] space-y-1 md:space-y-1.5 flex-1">
+                      <p>• Highest clarity across distances</p>
+                      <p>• Fastest, seamless visual transitions</p>
+                      <p>• Premium optics, maximum comfort</p>
+                      <p>• Works with all frame styles</p>
+                      <p>• For living life fully, without limits</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Advanced Options - Second */}
+                <div
+                  onClick={() => {
+                    setSelectedOption("advanced");
+                    if (window.innerWidth < 768) {
+                      handleMobileOptionSelect("advanced");
+                    }
+                  }}
                   className={`flex flex-col p-5 rounded-3xl border-2 cursor-pointer
                     ${selectedOption === "advanced"
                       ? "border-green-600 shadow-md"
@@ -264,9 +325,9 @@ const SelectPrescriptionType: React.FC = () => {
                 >
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex-1 pr-2">
-                      <p className="text-xs font-semibold text-[#1F1F1F] md:text-teal-700 mb-1 uppercase md:normal-case tracking-wider md:tracking-normal">Recommended</p>
+                      <p className="text-xs font-semibold bg-black text-white px-2 py-1 rounded mb-1 uppercase tracking-wider inline-block">Recommended for New Multifocal User</p>
                       <h3 className="text-lg md:text-base font-bold text-[#1F1F1F]">
-                        Advanced & Precision+ Options
+                        Advanced Options
                       </h3>
                     </div>
                     {/* Arrow (Mobile) or Radio (Desktop) */}
@@ -294,26 +355,33 @@ const SelectPrescriptionType: React.FC = () => {
                       className="w-24 md:w-28 h-24 md:h-auto rounded-full md:rounded-2xl shrink-0 object-cover border border-gray-200 md:border-none"
                     />
                     <div className="text-sm text-[#1F1F1F] space-y-1 md:space-y-1.5 flex-1">
-                      <p>• Best choice{window.innerWidth >= 768 ? "" : " for first-timers"}</p>
+                      <p>• Ideal for everyday multitasking</p>
+                      <p>• Clear near to mid vision</p>
+                      <p>• Comfortable digital viewing</p>
                       <p>• Works with all frame styles</p>
                       <p>• Fastest, easiest to adapt</p>
-                      <p>• For living life fully, without limits</p>
-                      <p>• Highest clarity across distances</p>
                     </div>
                   </div>
                 </div>
 
-                {/* Standard Options */}
-                <div
-                  onClick={() => handleMobileOptionSelect("standard")}
-                  className={`flex flex-col p-5 rounded-3xl border-2 cursor-pointer
-                    ${selectedOption === "standard"
-                      ? "border-green-600 shadow-md"
-                      : "border-gray-400"
-                    }`}
-                >
+                {/* Standard Options - Third */}
+                <div className="md:col-span-2 flex justify-center">
+                  <div
+                    onClick={() => {
+                      setSelectedOption("standard");
+                      if (window.innerWidth < 768) {
+                        handleMobileOptionSelect("standard");
+                      }
+                    }}
+                    className={`flex flex-col p-5 rounded-3xl border-2 cursor-pointer w-full md:w-1/2
+                      ${selectedOption === "standard"
+                        ? "border-green-600 shadow-md"
+                        : "border-gray-400"
+                      }`}
+                  >
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex-1 pr-2">
+                      <p className="text-xs font-semibold bg-black text-white px-2 py-1 rounded mb-1 uppercase tracking-wider inline-block">Recommended for New User</p>
                       <h3 className="text-lg md:text-base font-bold text-[#1F1F1F]">
                         Standard Options
                       </h3>
@@ -360,6 +428,7 @@ const SelectPrescriptionType: React.FC = () => {
                         </>
                       )}
                     </div>
+                  </div>
                   </div>
                 </div>
               </div>

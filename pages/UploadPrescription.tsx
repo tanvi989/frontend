@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import CheckoutStepper from "../components/CheckoutStepper";
-import { saveMyPrescription, uploadPrescriptionImage, addPrescription } from "../api/retailerApis";
+import Toast from "../components/Toast";
+import { saveMyPrescription, uploadPrescriptionImage, addPrescription, getMyPrescriptions } from "../api/retailerApis";
 import PrescriptionHelpModal from "../components/PrescriptionHelpModal";
 import { getProductFlow, setProductFlow } from "../utils/productFlowStorage";
 import { compressImage } from "../utils/imageUtils";
@@ -23,6 +24,9 @@ const UploadPrescription: React.FC = () => {
     const [existingPrescriptionFileName, setExistingPrescriptionFileName] = useState<string | null>(() => state?.prescriptionUploadedFileName ?? flow?.prescriptionUploadedFileName ?? null);
     const [isDragging, setIsDragging] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
+    // When user clicks "Remove File", don't re-populate from API until they upload new or leave
+    const userClearedPrescriptionRef = useRef(false);
 
     const hasPrescriptionToShow = !!selectedFile || !!existingPrescriptionUrl;
 
@@ -44,6 +48,29 @@ const UploadPrescription: React.FC = () => {
         return t === "dual" || (!!r && !!l);
     });
     const [helpModalOpen, setHelpModalOpen] = useState(false);
+
+    // Fetch prescriptions so we can show the LATEST for this product (not old one from flow)
+    const { data: prescriptionsResponse } = useQuery({
+        queryKey: ["prescriptions"],
+        queryFn: () => getMyPrescriptions(),
+        enabled: !!id,
+        staleTime: 2 * 60 * 1000,
+    });
+    const apiPrescriptions = prescriptionsResponse?.data?.data || [];
+
+    // Prefer latest prescription for this product from API (only on initial load; don't overwrite after user removed)
+    useEffect(() => {
+        if (!id || !apiPrescriptions.length || userClearedPrescriptionRef.current) return;
+        const productSkuStr = String(id);
+        const latestForProduct = apiPrescriptions.find((p: any) => {
+            const sku = p?.data?.associatedProduct?.productSku ?? p?.associatedProduct?.productSku ?? p?.data?.data?.associatedProduct?.productSku;
+            return sku && String(sku) === productSkuStr;
+        });
+        if (latestForProduct?.image_url) {
+            setExistingPrescriptionUrl(latestForProduct.image_url);
+            setExistingPrescriptionFileName(latestForProduct?.name ?? latestForProduct?.data?.name ?? "Prescription");
+        }
+    }, [id, apiPrescriptions]);
 
     // Sync PD from select-prescription-source when state/flow has it (e.g. after navigation)
     useEffect(() => {
@@ -77,6 +104,10 @@ const UploadPrescription: React.FC = () => {
             return;
         }
         setSelectedFile(file);
+        // User is replacing with new file: clear old prescription display and allow API to set again later if needed
+        setExistingPrescriptionUrl(null);
+        setExistingPrescriptionFileName(null);
+        userClearedPrescriptionRef.current = false;
 
         // Create preview for images
         if (file.type.startsWith("image/")) {
@@ -376,9 +407,20 @@ const UploadPrescription: React.FC = () => {
                     console.log("✓ Added new prescription to localStorage for cartId:", cartItemId);
                 }
             } else {
-                // Add new prescription (product page flow)
-                savedPrescriptions.push(prescriptionPayload);
-                console.log("✓ Added new prescription to localStorage");
+                // Product page flow: remove old prescriptions for same product SKU before adding new one
+                const productSkuStr = id ? String(id) : "";
+                const filtered = savedPrescriptions.filter((p: any) => {
+                    const pSku = p?.associatedProduct?.productSku ?? p?.data?.associatedProduct?.productSku;
+                    // Keep prescription if productSku doesn't match (different product)
+                    if (productSkuStr && pSku != null && String(pSku) === productSkuStr) {
+                        return false; // Remove old prescription for same product
+                    }
+                    return true; // Keep other prescriptions
+                });
+                filtered.push(prescriptionPayload);
+                savedPrescriptions.length = 0;
+                savedPrescriptions.push(...filtered);
+                console.log("✓ Removed old prescriptions for same product SKU and added new prescription");
             }
             
             localStorage.setItem('prescriptions', JSON.stringify(savedPrescriptions));
@@ -398,12 +440,14 @@ const UploadPrescription: React.FC = () => {
             }
 
             setLoading(false);
+            userClearedPrescriptionRef.current = false;
 
-            // HANDLE NAVIGATION based on source
+            setToast({ message: "Prescription uploaded successfully", type: "success" });
+
+            // HANDLE NAVIGATION based on source (short delay so user sees success message)
             if (cartItemId) {
-                // Return to cart flow
                 sessionStorage.setItem("fromPrescription", "true");
-                navigate("/cart");
+                setTimeout(() => navigate("/cart"), 1500);
                 return;
             }
 
@@ -422,26 +466,28 @@ const UploadPrescription: React.FC = () => {
                     totalPD: pdSingle
                 };
 
-            // Navigate to next step
-            navigate(`/product/${id}/select-lens`, {
-                state: {
-                    ...state,
-                    product: state?.product || {
-                        id: id,
-                        skuid: id,
-                        name: state?.product?.name || "Product",
-                        price: state?.product?.price || "0",
-                        image: state?.product?.image || "",
-                        colors: state?.product?.colors || [],
+            // Navigate to next step after user sees success toast
+            setTimeout(() => {
+                navigate(`/product/${id}/select-lens`, {
+                    state: {
+                        ...state,
+                        product: state?.product || {
+                            id: id,
+                            skuid: id,
+                            name: state?.product?.name || "Product",
+                            price: state?.product?.price || "0",
+                            image: state?.product?.image || "",
+                            colors: state?.product?.colors || [],
+                        },
+                        prescriptionMethod: "upload",
+                        prescriptionFile: selectedFile,
+                        prescriptionPreview: previewUrl,
+                        prescriptionData: {
+                            ...checkoutPdData
+                        }
                     },
-                    prescriptionMethod: "upload",
-                    prescriptionFile: selectedFile,
-                    prescriptionPreview: previewUrl,
-                    prescriptionData: {
-                        ...checkoutPdData
-                    }
-                },
-            });
+                });
+            }, 1500);
 
         } catch (error: any) {
             console.error("Failed to save prescription:", error);
@@ -455,6 +501,7 @@ const UploadPrescription: React.FC = () => {
         setPreviewUrl(null);
         setExistingPrescriptionUrl(null);
         setExistingPrescriptionFileName(null);
+        userClearedPrescriptionRef.current = true;
         if (id) setProductFlow(id, { prescriptionUploadedUrl: undefined, prescriptionUploadedFileName: undefined });
         if (fileInputRef.current) {
             fileInputRef.current.value = "";
@@ -632,81 +679,53 @@ const UploadPrescription: React.FC = () => {
                         className="hidden"
                     />
 
-                    {/* PD Section - show when file selected or previously uploaded */}
+                    {/* PD Section - show when file selected or previously uploaded; hide only PD UI in product flow (PD already from previous page) */}
                     {hasPrescriptionToShow && (
                         <div className="mt-8">
-                            <div className="flex items-center mb-4">
-                                <h3 className="text-[#1F1F1F] font-bold text-base">
-                                    Pupillary Distance (PD)
-                                </h3>
-                                <button
-                                    type="button"
-                                    onClick={() => setHelpModalOpen(true)}
-                                    className="ml-2 w-5 h-5 rounded-full bg-[#E94D37] flex items-center justify-center hover:bg-[#bf3e2b] transition-colors"
-                                >
-                                    <svg
-                                        width="12"
-                                        height="12"
-                                        viewBox="0 0 12 12"
-                                        fill="none"
-                                        stroke="white"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    >
-                                        <circle cx="6" cy="6" r="4"></circle>
-                                        <line x1="6" y1="8" x2="6" y2="8" strokeLinecap="round"></line>
-                                        <path d="M6 5.5a1 1 0 0 0 1-1 1.5 1.5 0 0 0-3 0 1 1 0 0 0 1 1z"></path>
-                                    </svg>
-                                </button>
-                            </div>
-
-                            <div className="w-full max-w-[320px] mb-4">
-                                {!hasDualPD ? (
-                                    <div className="relative">
-                                        <select
-                                            value={pdSingle}
-                                            onChange={(e) => setPdSingle(e.target.value)}
-                                            className="w-full bg-gray-100 border border-gray-200 rounded-lg px-4 py-3 pr-8 text-[#1F1F1F] font-medium focus:outline-none focus:border-[#232320] transition-colors appearance-none cursor-pointer"
+                            {!id && (
+                                <>
+                                    <div className="flex items-center mb-4">
+                                        <h3 className="text-[#1F1F1F] font-bold text-base">
+                                            Pupillary Distance (PD)
+                                        </h3>
+                                        <button
+                                            type="button"
+                                            onClick={() => setHelpModalOpen(true)}
+                                            className="ml-2 w-5 h-5 rounded-full bg-[#E94D37] flex items-center justify-center hover:bg-[#bf3e2b] transition-colors"
                                         >
-                                            <option value="">Select PD</option>
-                                            {Array.from({ length: 81 }, (_, i) => (40 + i * 0.5).toFixed(2)).map((val) => (
-                                                <option key={val} value={val}>
-                                                    {val}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
                                             <svg
-                                                className="fill-current h-4 w-4"
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                viewBox="0 0 20 20"
+                                                width="12"
+                                                height="12"
+                                                viewBox="0 0 12 12"
+                                                fill="none"
+                                                stroke="white"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
                                             >
-                                                <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                                                <circle cx="6" cy="6" r="4"></circle>
+                                                <line x1="6" y1="8" x2="6" y2="8" strokeLinecap="round"></line>
+                                                <path d="M6 5.5a1 1 0 0 0 1-1 1.5 1.5 0 0 0-3 0 1 1 0 0 0 1 1z"></path>
                                             </svg>
-                                        </div>
+                                        </button>
                                     </div>
-                                ) : (
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="flex flex-col gap-2">
-                                            <label className="text-sm font-bold text-[#1F1F1F] uppercase tracking-wide">
-                                                Right Eye
-                                            </label>
+
+                                    <div className="w-full max-w-[320px] mb-4">
+                                        {!hasDualPD ? (
                                             <div className="relative">
                                                 <select
-                                                    value={pdRight}
-                                                    onChange={(e) => setPdRight(e.target.value)}
-                                                    className="relative z-10 w-full bg-gray-100 border border-gray-200 rounded-lg px-4 py-3 pr-8 text-[#1F1F1F] font-medium focus:outline-none focus:border-[#232320] transition-colors appearance-none cursor-pointer"
-                                                    style={{ minHeight: "44px" }}
+                                                    value={pdSingle}
+                                                    onChange={(e) => setPdSingle(e.target.value)}
+                                                    className="w-full bg-gray-100 border border-gray-200 rounded-lg px-4 py-3 pr-8 text-[#1F1F1F] font-medium focus:outline-none focus:border-[#232320] transition-colors appearance-none cursor-pointer"
                                                 >
-                                                    <option value="">Select</option>
-                                                    {Array.from({ length: 45 }, (_, i) => (20 + i * 0.5).toFixed(2)).map((val) => (
+                                                    <option value="">Select PD</option>
+                                                    {Array.from({ length: 81 }, (_, i) => (40 + i * 0.5).toFixed(2)).map((val) => (
                                                         <option key={val} value={val}>
                                                             {val}
                                                         </option>
                                                     ))}
                                                 </select>
-                                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 z-0">
+                                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
                                                     <svg
                                                         className="fill-current h-4 w-4"
                                                         xmlns="http://www.w3.org/2000/svg"
@@ -716,63 +735,95 @@ const UploadPrescription: React.FC = () => {
                                                     </svg>
                                                 </div>
                                             </div>
-                                        </div>
-                                        <div className="flex flex-col gap-2">
-                                            <label className="text-sm font-bold text-[#1F1F1F] uppercase tracking-wide">
-                                                Left Eye
-                                            </label>
-                                            <div className="relative">
-                                                <select
-                                                    value={pdLeft}
-                                                    onChange={(e) => setPdLeft(e.target.value)}
-                                                    className="relative z-10 w-full bg-gray-100 border border-gray-200 rounded-lg px-4 py-3 pr-8 text-[#1F1F1F] font-medium focus:outline-none focus:border-[#232320] transition-colors appearance-none cursor-pointer"
-                                                    style={{ minHeight: "44px" }}
-                                                >
-                                                    <option value="">Select</option>
-                                                    {Array.from({ length: 45 }, (_, i) => (20 + i * 0.5).toFixed(2)).map((val) => (
-                                                        <option key={val} value={val}>
-                                                            {val}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 z-0">
-                                                    <svg
-                                                        className="fill-current h-4 w-4"
-                                                        xmlns="http://www.w3.org/2000/svg"
-                                                        viewBox="0 0 20 20"
-                                                    >
-                                                        <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                                                    </svg>
+                                        ) : (
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="flex flex-col gap-2">
+                                                    <label className="text-sm font-bold text-[#1F1F1F] uppercase tracking-wide">
+                                                        Right Eye
+                                                    </label>
+                                                    <div className="relative">
+                                                        <select
+                                                            value={pdRight}
+                                                            onChange={(e) => setPdRight(e.target.value)}
+                                                            className="relative z-10 w-full bg-gray-100 border border-gray-200 rounded-lg px-4 py-3 pr-8 text-[#1F1F1F] font-medium focus:outline-none focus:border-[#232320] transition-colors appearance-none cursor-pointer"
+                                                            style={{ minHeight: "44px" }}
+                                                        >
+                                                            <option value="">Select</option>
+                                                            {Array.from({ length: 45 }, (_, i) => (20 + i * 0.5).toFixed(2)).map((val) => (
+                                                                <option key={val} value={val}>
+                                                                    {val}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 z-0">
+                                                            <svg
+                                                                className="fill-current h-4 w-4"
+                                                                xmlns="http://www.w3.org/2000/svg"
+                                                                viewBox="0 0 20 20"
+                                                            >
+                                                                <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                                                            </svg>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col gap-2">
+                                                    <label className="text-sm font-bold text-[#1F1F1F] uppercase tracking-wide">
+                                                        Left Eye
+                                                    </label>
+                                                    <div className="relative">
+                                                        <select
+                                                            value={pdLeft}
+                                                            onChange={(e) => setPdLeft(e.target.value)}
+                                                            className="relative z-10 w-full bg-gray-100 border border-gray-200 rounded-lg px-4 py-3 pr-8 text-[#1F1F1F] font-medium focus:outline-none focus:border-[#232320] transition-colors appearance-none cursor-pointer"
+                                                            style={{ minHeight: "44px" }}
+                                                        >
+                                                            <option value="">Select</option>
+                                                            {Array.from({ length: 45 }, (_, i) => (20 + i * 0.5).toFixed(2)).map((val) => (
+                                                                <option key={val} value={val}>
+                                                                    {val}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 z-0">
+                                                            <svg
+                                                                className="fill-current h-4 w-4"
+                                                                xmlns="http://www.w3.org/2000/svg"
+                                                                viewBox="0 0 20 20"
+                                                            >
+                                                                <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                                                            </svg>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
-                                )}
-                            </div>
 
-                            <div className="mb-6">
-                                <label className="flex items-center gap-2 cursor-pointer hover:opacity-80 select-none">
-                                    <input
-                                        type="checkbox"
-                                        checked={hasDualPD}
-                                        onChange={(e) => {
-                                            setHasDualPD(e.target.checked);
-                                            if (!e.target.checked) {
-                                                setPdRight("");
-                                                setPdLeft("");
-                                            } else {
-                                                setPdSingle("");
-                                            }
-                                        }}
-                                        className="w-5 h-5 rounded border-gray-300 text-[#015490] focus:ring-[#015490] cursor-pointer"
-                                    />
-                                    <span className="text-sm text-[#1F1F1F] font-medium">
-                                        I have 2 PD numbers
-                                    </span>
-                                </label>
-                            </div>
+                                    <div className="mb-6">
+                                        <label className="flex items-center gap-2 cursor-pointer hover:opacity-80 select-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={hasDualPD}
+                                                onChange={(e) => {
+                                                    setHasDualPD(e.target.checked);
+                                                    if (!e.target.checked) {
+                                                        setPdRight("");
+                                                        setPdLeft("");
+                                                    } else {
+                                                        setPdSingle("");
+                                                    }
+                                                }}
+                                                className="w-5 h-5 rounded border-gray-300 text-[#015490] focus:ring-[#015490] cursor-pointer"
+                                            />
+                                            <span className="text-sm text-[#1F1F1F] font-medium">
+                                                I have 2 PD numbers
+                                            </span>
+                                        </label>
+                                    </div>
+                                </>
+                            )}
 
-                            {/* Save and Continue Button */}
+                            {/* Save and Continue Button - always show when prescription is present */}
                             <div className="hidden md:flex justify-center mb-32 md:mb-0">
                                 <button
                                     onClick={handleSaveAndContinue}
@@ -820,6 +871,15 @@ const UploadPrescription: React.FC = () => {
                 onClose={() => setHelpModalOpen(false)}
                 initialTab="Pupillary Distance"
             />
+
+            {toast && (
+                <Toast
+                    message={toast.message}
+                    type={toast.type}
+                    onClose={() => setToast(null)}
+                    duration={4000}
+                />
+            )}
         </div>
 
     );

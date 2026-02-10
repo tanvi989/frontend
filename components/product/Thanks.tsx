@@ -5,6 +5,13 @@ import { getPaymentStatus, getThankYou, sendInvoice } from '../../api/retailerAp
 import { Loader } from '../Loader';
 import { clearOrderRelatedStorage } from '../../utils/productFlowStorage';
 
+const ORDER_STEPS = [
+    { key: 'processing', label: 'Processing' },
+    { key: 'dispatched', label: 'Dispatched' },
+    { key: 'shipped', label: 'Shipped' },
+    { key: 'delivered', label: 'Delivered' },
+];
+
 const Thanks: React.FC = () => {
     const { state } = useLocation();
     const navigate = useNavigate();
@@ -12,6 +19,8 @@ const Thanks: React.FC = () => {
     
     // Add countdown state for redirect
     const [countdown, setCountdown] = useState(4);
+    // Show more section (order progress / tracking)
+    const [showMore, setShowMore] = useState(false);
 
     // Clear product flow and local prescriptions so next order starts fresh
     useEffect(() => {
@@ -104,7 +113,7 @@ const Thanks: React.FC = () => {
     let showThankYouMessage = false;
 
     if (order.payment_status === 'Success') {
-        statusText = 'Congratulations! The sale has been completed.';
+        statusText = 'Your order has been placed successfully.';
         statusColorClass = 'text-green-500 bg-green-50';
         StatusIcon = (
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -149,6 +158,11 @@ const Thanks: React.FC = () => {
         : parseFloat(order?.order?.order_total || 0).toFixed(2);
     const discount = (parseFloat(subtotal) - parseFloat(totalPaid) + parseFloat(shippingCost)).toFixed(2);
 
+    // Order progress: map backend status to step index (0–3), default Processing
+    const orderStatus = (order?.order?.order_status || order?.order_status || order?.delivery_status || 'processing').toString().toLowerCase();
+    const statusStepMap: Record<string, number> = { processing: 0, dispatched: 1, shipped: 2, delivered: 3 };
+    const currentStepIndex = statusStepMap[orderStatus] ?? 0;
+
     return (
         <div className="min-h-screen bg-[#F3F0E7] py-12 px-4 md:px-8 font-sans">
             <div className="max-w-[800px] mx-auto">
@@ -158,7 +172,7 @@ const Thanks: React.FC = () => {
                             <polyline points="15 18 9 12 15 6"></polyline>
                         </svg>
                     </button>
-                    <h1 className="text-2xl font-bold text-[#1F1F1F]">Thanks</h1>
+                    <h1 className="text-2xl font-bold text-[#1F1F1F]">Thank You!</h1>
                 </div>
 
                 <div className="bg-white rounded-xl shadow-[0px_4px_30px_0px_rgba(0,0,0,0.05)] p-6 md:p-10 relative">
@@ -168,14 +182,11 @@ const Thanks: React.FC = () => {
                         <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-4 ${statusColorClass}`}>
                             {StatusIcon}
                         </div>
-                        <h2 className="text-xl md:text-2xl font-bold text-[#5B5B5B] mb-2">{statusText}</h2>
-                        
-                        {/* Added thank you message */}
-                        {showThankYouMessage && (
-                            <p className="text-lg font-medium text-[#1F1F1F] mb-2">Thank you for choosing Multifolks</p>
+                        <h2 className="text-xl md:text-2xl font-bold text-[#1F1F1F] mb-2">{statusText}</h2>
+
+                        {order.payment_status === 'Success' && (
+                            <p className="text-[#4596F3] text-sm font-medium mb-2">Order Id : {order?.order?.order_id}</p>
                         )}
-                        
-                        <p className="text-[#4596F3] text-sm font-medium mb-1">Order Id : {order?.order?.order_id}</p>
                         {order.payment_status === 'Success' && (
                             <p className="text-gray-500 text-xs mb-4">
                                 An order confirmation email has been sent to <b>{customerEmail}</b>
@@ -200,6 +211,83 @@ const Thanks: React.FC = () => {
                                 <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                             </svg>
                         </button>
+                    </div>
+
+                    {/* Order progress bar: Processing → Dispatched → Shipped → Delivered */}
+                    {order.payment_status === 'Success' && (
+                        <div className="mb-6">
+                            <h3 className="text-xs font-bold text-[#525252] uppercase tracking-wider mb-4">Order progress</h3>
+                            <div className="relative flex items-start">
+                                {/* Connecting line behind steps */}
+                                <div className="absolute top-4 left-0 right-0 h-0.5 bg-gray-200" style={{ marginLeft: '1rem', marginRight: '1rem', width: 'calc(100% - 2rem)' }} />
+                                <div
+                                    className="absolute top-4 h-0.5 bg-[#00C853] transition-all duration-300"
+                                    style={{ left: '1rem', width: `calc(${(currentStepIndex / (ORDER_STEPS.length - 1)) * 100}% * (100% - 2rem) / 100 - 1rem)` }}
+                                />
+                                {ORDER_STEPS.map((step, index) => {
+                                    const isCompleted = index <= currentStepIndex;
+                                    const isCurrent = index === currentStepIndex;
+                                    return (
+                                        <div key={step.key} className="flex flex-col items-center flex-1 min-w-0 relative z-10">
+                                            <div
+                                                className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 ${
+                                                    isCompleted
+                                                        ? 'bg-[#00C853] border-[#00C853] text-white'
+                                                        : 'bg-white border-gray-200 text-[#525252]'
+                                                } ${isCurrent ? 'ring-2 ring-[#00C853] ring-offset-2' : ''}`}
+                                            >
+                                                {isCompleted ? (
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                                    </svg>
+                                                ) : (
+                                                    index + 1
+                                                )}
+                                            </div>
+                                            <span className={`text-[10px] md:text-xs font-medium mt-2 text-center ${isCurrent ? 'text-[#00C853]' : isCompleted ? 'text-[#313131]' : 'text-gray-400'}`}>
+                                                {step.label}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Show more / Show less toggle */}
+                    <div className="mb-6">
+                        <button
+                            type="button"
+                            onClick={() => setShowMore((v) => !v)}
+                            className="flex items-center gap-2 text-sm font-bold text-[#4596F3] hover:text-[#0277BD] transition-colors"
+                        >
+                            {showMore ? 'Show less' : 'Show more'}
+                            <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                className={`transition-transform ${showMore ? 'rotate-180' : ''}`}
+                            >
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                        {showMore && (
+                            <div className="mt-3 p-4 bg-gray-50 rounded-lg border border-gray-200 text-sm text-[#525252] space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                                <p className="font-medium text-[#1F1F1F]">What happens next?</p>
+                                <ul className="list-disc list-inside space-y-1 text-xs">
+                                    <li><strong>Processing:</strong> We’re preparing your order and checking prescription details.</li>
+                                    <li><strong>Dispatched:</strong> Your order has been handed to our shipping partner.</li>
+                                    <li><strong>Shipped:</strong> Your order is on its way. You may receive tracking details by email.</li>
+                                    <li><strong>Delivered:</strong> Your order has been delivered. Enjoy your new glasses!</li>
+                                </ul>
+                                <p className="text-xs pt-2 border-t border-gray-200 mt-2">
+                                    Need help? Contact us at <span className="font-semibold text-[#1F1F1F]">{order?.order?.retailer?.phone_number || 'our store'}</span> or visit your orders page for tracking.
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     <div className="w-full h-px bg-gray-100 my-6"></div>
@@ -291,7 +379,7 @@ const Thanks: React.FC = () => {
 
                     <div className="w-full h-px bg-gray-100 my-8"></div>
 
-                    {/* Action Buttons - Added two hyperlinks */}
+                    {/* Action Buttons */}
                     <div className="flex flex-col md:flex-row gap-4 justify-center">
                         <button
                             onClick={() => navigate('/orders')}
@@ -303,7 +391,7 @@ const Thanks: React.FC = () => {
                             onClick={() => navigate('/')}
                             className="bg-white border-2 border-[#232320] text-[#232320] px-8 py-3 rounded-full font-bold text-sm uppercase tracking-widest hover:bg-[#F3F0E7] transition-all shadow-lg hover:shadow-xl transform active:scale-95 min-w-[250px]"
                         >
-                            Back to Home
+                            Continue Shopping
                         </button>
                     </div>
 

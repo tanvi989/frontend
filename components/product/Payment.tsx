@@ -1313,20 +1313,77 @@ const PaymentModes: React.FC<{
               </label>
             </div> */}
 
-            {/* Buy Now Pay Later Option */}
-            <div className="border border-gray-300 rounded-sm">
-              <label className="flex items-center p-5 cursor-pointer">
-                <div className="flex items-center justify-center w-5 h-5 rounded-full border border-gray-300 mr-4 shrink-0"></div>
+            {/* Buy Now Pay Later Option - same Stripe redirect as Credit/Debit */}
+            <div className="border border-gray-300 rounded-sm overflow-hidden">
+              <label
+                className={`flex items-center p-5 cursor-pointer transition-all ${selectedValue == 201 ? "bg-white" : "bg-white"}`}
+              >
+                <div
+                  className={`flex items-center justify-center w-5 h-5 rounded-full border mr-4 shrink-0 ${selectedValue == 201 ? "border-[#00C853]" : "border-gray-300"}`}
+                >
+                  {selectedValue == 201 && (
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#00C853]"></div>
+                  )}
+                </div>
                 <input
                   type="radio"
                   name="paymentmode"
-                  disabled
+                  value="201"
+                  checked={selectedValue == 201}
+                  onChange={() => handlePaymentModeChange(201)}
                   className="hidden"
                 />
                 <span className="font-bold text-[#1F1F1F] text-sm">
                   Buy Now Pay Later
                 </span>
               </label>
+
+              {selectedValue == 201 && (
+                <div className="mt-4 p-6 bg-white rounded-sm border border-gray-300 animate-in fade-in slide-in-from-top-2 ml-4 border-l-4 border-l-[#232320]">
+                  <div className="text-center py-4">
+                    <p className="text-sm text-gray-600 mb-4">
+                      You will be redirected to a secure Stripe payment page to complete your purchase.
+                    </p>
+                    <button
+                      onClick={() => handlePlaceOrder()}
+                      className="w-full bg-[#0074D4] text-white py-3 rounded-md font-bold text-sm hover:bg-[#0064B6] transition-colors shadow-sm flex items-center justify-center gap-2"
+                    >
+                      <span>Proceed to Payment</span>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M5 12h14"></path>
+                        <path d="M12 5l7 7-7 7"></path>
+                      </svg>
+                    </button>
+                  </div>
+
+                  <div className="mt-4 flex justify-center gap-4 text-xs text-gray-400">
+                    <span>
+                      Powered by{" "}
+                      <span className="font-bold text-gray-500">stripe</span>
+                    </span>
+                    <span>Terms</span>
+                    <span>Privacy</span>
+                  </div>
+
+                  {cardError && (
+                    <div className="flex items-center gap-2 text-red-500 text-sm mt-3 font-bold bg-red-50 p-2 rounded">
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                      </svg>
+                      {cardError}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -1347,7 +1404,7 @@ const PaymentModes: React.FC<{
             </span>
           </div>
 
-          {selectedValue != 200 && (
+          {(selectedValue != 200 && selectedValue != 201) && (
             <div className="flex justify-center mt-8">
               <button
                 onClick={() => handlePlaceOrder()}
@@ -1603,8 +1660,8 @@ const Payment: React.FC = () => {
     // Generate unique order ID
     const orderId = `ORD-${Date.now()}`;
 
-    // If Payment Mode is Stripe (200), create session directly without placeOrder
-    if (selectedValue == 200) {
+    // If Payment Mode is Stripe (200) or Buy Now Pay Later (201), both redirect to same Stripe link
+    if (selectedValue == 200 || selectedValue == 201) {
       try {
         // Prepare prescriptions for metadata safely
         // Stripe metadata has a 500-character limit per value. 
@@ -1810,8 +1867,33 @@ const Payment: React.FC = () => {
                 )}
               </div>
 
-              {/* Right Column: Summary */}
-              <div className="lg:col-span-1 hidden md:block">
+              {/* Right Column: Delivery Address + Summary / Payment details */}
+              <div className="lg:col-span-1 hidden md:block flex flex-col gap-6">
+                {/* Delivery Address - shown when address is set */}
+                {addressData && (
+                  <div>
+                    <h3 className="text-sm font-bold text-[#1F1F1F] mb-3 font-sans">
+                      Delivery Address
+                    </h3>
+                    <div className="bg-white border border-gray-300 p-4 rounded-sm shadow-sm">
+                      <p className="font-bold text-[#1F1F1F] text-sm">
+                        {addressData.fullName}
+                      </p>
+                      <p className="text-sm text-[#525252] mt-1">
+                        Tel. - {addressData.mobile}
+                      </p>
+                      <p className="text-sm text-[#525252] mt-2">
+                        {addressData.addressLine}
+                      </p>
+                      <p className="text-sm text-[#525252]">
+                        {[addressData.city, addressData.zip].filter(Boolean).join(" ")}
+                        {addressData.state && `, ${addressData.state}`}
+                        {addressData.country && `, ${addressData.country}`}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <CheckoutSummary
                   cartItems={carts}
                   subtotal={listPrice}
@@ -1860,6 +1942,8 @@ const Payment: React.FC = () => {
           close={handleCloseCartView}
           carts={carts}
           refetch={refetchCart}
+          shippingCost={shippingCost}
+          discountAmount={offerAmount}
           onCheckout={window.innerWidth < 768 ? () => {
             if (openCustomerCart && step === "address") {
               setStep("payment");

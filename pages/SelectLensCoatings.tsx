@@ -248,10 +248,11 @@ const SelectLensCoatings: React.FC = () => {
         lensPackagePrice: lensPackagePrice, // Lens index price
         lensCategory: state?.lensCategory,
         prescriptionTier: state?.prescriptionTier,
-        main_category: state?.lensType === "bifocal" ? "Bifocal Lenses" :
-          state?.prescriptionTier === "advanced" ? "Premium Progressive Lenses" :
-            state?.prescriptionTier === "standard" ? "Standard Progressive Lenses" :
-              "Progressive Lenses",
+        main_category: state?.lensType === "single" ? "Single Vision" :
+          state?.lensType === "bifocal" ? "Bifocal" :
+          state?.precisionPlus ? "Precision Progressive" :
+          state?.prescriptionTier === "advanced" ? "Premium Progressive" :
+          state?.prescriptionTier === "standard" ? "Standard Progressive" : "Progressive",
       });
 
 
@@ -261,10 +262,12 @@ const SelectLensCoatings: React.FC = () => {
         lensPackagePrice: Number(lensPackagePrice || 0),
         lensCategory: state?.lensCategory,
         prescriptionTier: state?.prescriptionTier,
-        mainCategory: state?.lensType === "bifocal" ? "Bifocal Lenses" :
-          state?.prescriptionTier === "advanced" ? "Premium Progressive Lenses" :
-            state?.prescriptionTier === "standard" ? "Standard Progressive Lenses" :
-              "Progressive Lenses",
+        mainCategory: state?.lensType === "single" ? "Single Vision" :
+          state?.lensType === "bifocal" ? "Bifocal" :
+          state?.precisionPlus ? "Precision Progressive" :
+          state?.prescriptionTier === "advanced" ? "Premium Progressive" :
+          state?.prescriptionTier === "standard" ? "Standard Progressive" : "Progressive",
+        lensType: state?.lensType,
         coatingTitle: selectedCoatingOption?.title,
         coatingPrice: Number(selectedCoatingOption?.priceValue || 0),
       });
