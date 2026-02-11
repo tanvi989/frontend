@@ -77,7 +77,9 @@ export default defineConfig(({ mode }) => {
         'test.multifolks.com',
         'finalbackend.multifolks.com',
         'livebackend.multifolks.com',
-        'final.multifolks.com'
+        'final.multifolks.com',
+        'live.multifolks.com',
+        'multifolks.com',
       ],
     },
 
