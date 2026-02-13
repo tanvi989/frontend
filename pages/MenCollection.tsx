@@ -46,6 +46,11 @@ const COMFORT_LABELS: Record<string, string> = {
   Lightweight: "Lightweight (less than 30 gm)",
   "Spring Hinge": "With Hinge",
 };
+/** UI option → API value (product.comfort array uses "Hinges", not "Spring Hinge") */
+const COMFORT_TO_API: Record<string, string> = {
+  Lightweight: "Lightweight",
+  "Spring Hinge": "Hinges",
+};
 const FRAME_COLORS = [
   "Beige",
   "Black",
@@ -509,7 +514,7 @@ const MenCollection: React.FC = () => {
       if (selectedFilters.FrameColors.length > 0) params.colors = selectedFilters.FrameColors.join("|");
       if (selectedFilters.Material.length > 0) params.material = selectedFilters.Material.join("|");
       // if (selectedFilters.Collections.length > 0) params.collections = selectedFilters.Collections.join("|");
-      if (selectedFilters.Comfort.length > 0) params.comfort = selectedFilters.Comfort.join("|");
+      if (selectedFilters.Comfort.length > 0) params.comfort = selectedFilters.Comfort.map((c) => COMFORT_TO_API[c] ?? c).join("|");
       if (selectedFilters.Size.length > 0) params.size = selectedFilters.Size.join("|");
       if (selectedFilters.Brand.length > 0) params.brand = selectedFilters.Brand.join("|");
       if (selectedFilters.Styles.length > 0) params.style = selectedFilters.Styles.join("|");
@@ -518,7 +523,45 @@ const MenCollection: React.FC = () => {
       console.log("Fetching ALL MEN products for client pagination:", params);
       const response = await getAllProducts(params);
       const rawProducts = response.data?.products || response.data?.data || [];
-      const products = filterExcludedBrandProducts(rawProducts);
+      // Ensure only Men's products are shown (backend may not filter by gender param)
+      let filtered = rawProducts.filter((p: any) => (p.gender || "").trim() === "Men");
+      // Client-side Comfort: product.comfort array e.g. ["Hinges", "Lightweight"]
+      if (selectedFilters.Comfort.length > 0) {
+        const allowedComfort = new Set(selectedFilters.Comfort.map((c) => (COMFORT_TO_API[c] ?? c).trim()));
+        filtered = filtered.filter((p: any) =>
+          (p.comfort || []).some((c: string) => allowedComfort.has((c || "").trim()))
+        );
+      }
+      // Client-side FrameColors, Style, Shape, Material, Size, Brand
+      if (selectedFilters.FrameColors.length > 0) {
+        const allowedColors = new Set(selectedFilters.FrameColors.map((c) => (c || "").trim()));
+        filtered = filtered.filter((p: any) => {
+          const frameColor = (p.frame_color || "").trim();
+          const colorNames = (p.color_names || []).map((cn: string) => (cn || "").trim());
+          return allowedColors.has(frameColor) || colorNames.some((cn: string) => allowedColors.has(cn));
+        });
+      }
+      if (selectedFilters.Styles.length > 0) {
+        const allowedStyles = new Set(selectedFilters.Styles.map((s) => (s || "").trim()));
+        filtered = filtered.filter((p: any) => allowedStyles.has((p.style || "").trim()));
+      }
+      if (selectedFilters.Shape.length > 0) {
+        const allowedShapes = new Set(selectedFilters.Shape.map((s) => (s || "").trim()));
+        filtered = filtered.filter((p: any) => allowedShapes.has((p.shape || "").trim()));
+      }
+      if (selectedFilters.Material.length > 0) {
+        const allowedMaterials = new Set(selectedFilters.Material.map((m) => (m || "").trim().toLowerCase()));
+        filtered = filtered.filter((p: any) => allowedMaterials.has((p.material || "").trim().toLowerCase()));
+      }
+      if (selectedFilters.Size.length > 0) {
+        const allowedSizes = new Set(selectedFilters.Size.map((s) => (s || "").trim()));
+        filtered = filtered.filter((p: any) => allowedSizes.has((p.size || "").trim()));
+      }
+      if (selectedFilters.Brand.length > 0) {
+        const allowedBrands = new Set(selectedFilters.Brand.map((b) => (b || "").trim().toLowerCase()));
+        filtered = filtered.filter((p: any) => allowedBrands.has((p.brand || "").trim().toLowerCase()));
+      }
+      const products = filterExcludedBrandProducts(filtered);
 
       // Truncate naming_system to first three parts
       const processedProducts = products.map((p: any) => {

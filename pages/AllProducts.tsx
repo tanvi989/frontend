@@ -44,6 +44,11 @@ const COMFORT_LABELS: Record<string, string> = {
   Lightweight: "Lightweight (less than 30 gm)",
   "Spring Hinge": "With Hinge",
 };
+/** UI option → API value (product.comfort array uses "Hinges", not "Spring Hinge") */
+const COMFORT_TO_API: Record<string, string> = {
+  Lightweight: "Lightweight",
+  "Spring Hinge": "Hinges",
+};
 const FRAME_COLORS = [
   "Beige",
   "Black",
@@ -531,7 +536,7 @@ const AllProducts: React.FC<AllProductsProps> = ({ mobileLayout = false }) => {
       if (selectedFilters.FrameColors.length > 0) params.colors = selectedFilters.FrameColors.join("|");
       if (selectedFilters.Material.length > 0) params.material = selectedFilters.Material.join("|");
       // if (selectedFilters.Collections.length > 0) params.collections = selectedFilters.Collections.join("|");
-      if (selectedFilters.Comfort.length > 0) params.comfort = selectedFilters.Comfort.join("|");
+      if (selectedFilters.Comfort.length > 0) params.comfort = selectedFilters.Comfort.map((c) => COMFORT_TO_API[c] ?? c).join("|");
       if (selectedFilters.Size.length > 0) params.size = selectedFilters.Size.join("|");
       if (selectedFilters.Brand.length > 0) params.brand = selectedFilters.Brand.join("|");
       if (selectedFilters.Styles.length > 0) params.style = selectedFilters.Styles.join("|");
@@ -540,7 +545,52 @@ const AllProducts: React.FC<AllProductsProps> = ({ mobileLayout = false }) => {
 
       console.log("Fetching ALL products for client pagination:", params);
       const response = await getAllProducts(params);
-      const rawProducts = response.data?.products || response.data?.data || [];
+      let rawProducts = response.data?.products || response.data?.data || [];
+      // Filter by product.gender: "Men" | "Women" (backend may not filter by gender param)
+      if (selectedFilters.Gender.length > 0) {
+        const allowed = new Set(selectedFilters.Gender.map((g) => (g || "").trim()));
+        rawProducts = rawProducts.filter((p: any) => allowed.has((p.gender || "").trim()));
+      }
+      // Client-side Comfort: product.comfort is array e.g. ["Hinges", "Lightweight", "Universal fit"]
+      if (selectedFilters.Comfort.length > 0) {
+        const allowedComfort = new Set(selectedFilters.Comfort.map((c) => (COMFORT_TO_API[c] ?? c).trim()));
+        rawProducts = rawProducts.filter((p: any) =>
+          (p.comfort || []).some((c: string) => allowedComfort.has((c || "").trim()))
+        );
+      }
+      // Client-side FrameColors: product.frame_color or product.color_names
+      if (selectedFilters.FrameColors.length > 0) {
+        const allowedColors = new Set(selectedFilters.FrameColors.map((c) => (c || "").trim()));
+        rawProducts = rawProducts.filter((p: any) => {
+          const frameColor = (p.frame_color || "").trim();
+          const colorNames = (p.color_names || []).map((cn: string) => (cn || "").trim());
+          return allowedColors.has(frameColor) || colorNames.some((cn: string) => allowedColors.has(cn));
+        });
+      }
+      // Client-side Style: product.style e.g. "Full Frame", "Half Frame"
+      if (selectedFilters.Styles.length > 0) {
+        const allowedStyles = new Set(selectedFilters.Styles.map((s) => (s || "").trim()));
+        rawProducts = rawProducts.filter((p: any) => allowedStyles.has((p.style || "").trim()));
+      }
+      // Client-side Shape
+      if (selectedFilters.Shape.length > 0) {
+        const allowedShapes = new Set(selectedFilters.Shape.map((s) => (s || "").trim()));
+        rawProducts = rawProducts.filter((p: any) => allowedShapes.has((p.shape || "").trim()));
+      }
+      // Client-side Material
+      if (selectedFilters.Material.length > 0) {
+        const allowedMaterials = new Set(selectedFilters.Material.map((m) => (m || "").trim().toLowerCase()));
+        rawProducts = rawProducts.filter((p: any) => allowedMaterials.has((p.material || "").trim().toLowerCase()));
+      }
+      // Client-side Size, Brand
+      if (selectedFilters.Size.length > 0) {
+        const allowedSizes = new Set(selectedFilters.Size.map((s) => (s || "").trim()));
+        rawProducts = rawProducts.filter((p: any) => allowedSizes.has((p.size || "").trim()));
+      }
+      if (selectedFilters.Brand.length > 0) {
+        const allowedBrands = new Set(selectedFilters.Brand.map((b) => (b || "").trim().toLowerCase()));
+        rawProducts = rawProducts.filter((p: any) => allowedBrands.has((p.brand || "").trim().toLowerCase()));
+      }
       const products = filterExcludedBrandProducts(rawProducts);
 
       // Truncate naming_system to first three parts
@@ -563,6 +613,13 @@ const AllProducts: React.FC<AllProductsProps> = ({ mobileLayout = false }) => {
 
   // Client-side Pagination Logic
   const allProducts = productsDataResponse?.products || productsDataResponse?.data || [];
+
+  // Apply gender filter: product.gender is "Men" or "Women"
+  const allProductsFilteredByGender = useMemo(() => {
+    if (selectedFilters.Gender.length === 0) return allProducts;
+    const allowed = new Set(selectedFilters.Gender.map((g) => (g || "").trim()));
+    return allProducts.filter((p: any) => allowed.has((p.gender || "").trim()));
+  }, [allProducts, selectedFilters.Gender]);
 
   // GA4: Track product list view when products load
   useEffect(() => {
@@ -662,14 +719,14 @@ const AllProducts: React.FC<AllProductsProps> = ({ mobileLayout = false }) => {
   const TOP_M_FIT_LIMIT = 200; // show more than 50
 
   // Products whose frame width is in range [faceWidth, faceWidth+15] (e.g. 135 → 135–150 mm), sorted by closest match.
-  // Use CSV frame width (getFrameWidth) first, then API dimensions string.
+  // Use CSV frame width (getFrameWidth) first, then API dimensions string. Use gender-filtered list.
   const topMfitProducts = useMemo(() => {
     const faceWidthMm = captureSession?.measurements?.face_width;
-    if (!faceWidthMm || !allProducts.length) return [];
+    if (!faceWidthMm || !allProductsFilteredByGender.length) return [];
     const minFrame = faceWidthMm + FRAME_WIDTH_MIN_OFFSET_MM;
     const maxFrame = faceWidthMm + FRAME_WIDTH_MAX_OFFSET_MM;
     const withWidth: { product: any; width: number }[] = [];
-    for (const p of allProducts) {
+    for (const p of allProductsFilteredByGender) {
       const frameWidth = getFrameWidth(p.skuid) ?? (p.dimensions ? parseDimensionsString(p.dimensions).width : undefined);
       if (frameWidth == null) continue;
       if (frameWidth >= minFrame && frameWidth <= maxFrame) {
@@ -678,10 +735,10 @@ const AllProducts: React.FC<AllProductsProps> = ({ mobileLayout = false }) => {
     }
     withWidth.sort((a, b) => Math.abs(a.width - faceWidthMm) - Math.abs(b.width - faceWidthMm));
     return withWidth.slice(0, TOP_M_FIT_LIMIT).map(({ product }) => product);
-  }, [captureSession?.measurements?.face_width, allProducts]);
+  }, [captureSession?.measurements?.face_width, allProductsFilteredByGender]);
 
   const filteredAndSortedProducts = useMemo(() => {
-    let result = [...allProducts]; // Use allProducts
+    let result = [...allProductsFilteredByGender];
     if (sortBy === "Price Low To High") {
       result.sort((a: any, b: any) => a.price - b.price);
     } else if (sortBy === "Price High To Low") {
@@ -692,7 +749,7 @@ const AllProducts: React.FC<AllProductsProps> = ({ mobileLayout = false }) => {
       result.sort((a: any, b: any) => (b.price || 0) - (a.price || 0));
     }
     return result;
-  }, [sortBy, allProducts]);
+  }, [sortBy, allProductsFilteredByGender]);
 
   // When "Top matches M fit" is ON (or on mobile glasses-m always on), grid shows only frame-width-matched products
   const effectiveTopMfit = topMfitEnabled || (mobileLayout && topMfitProducts.length > 0);
