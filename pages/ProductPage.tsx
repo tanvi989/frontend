@@ -1528,7 +1528,7 @@ const ProductPage: React.FC = () => {
                   />
                 </div>
                 <div className="absolute top-2 right-2 z-10 flex justify-between items-center">
-                  <span className="text-xs font-bold text-[#4A90A4] uppercase tracking-wider mr-2">Try on you</span>
+             
                   <button
                     type="button"
                     onClick={() => setVtoModalOpen(false)}
