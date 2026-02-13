@@ -97,7 +97,7 @@ const ProductCard = ({ product, onClick }: { product: RecommendedProduct; onClic
         {/* Product Info - Naming System and Price */}
         <div className="flex justify-between items-end px-1 mt-1">
           <span className="text-sm font-bold text-[#1F1F1F] uppercase tracking-wider">
-            {product.naming_system}
+            {product.naming_system?.split('.').slice(0, 3).join('.')}
           </span>
           <span className="text-sm font-bold text-[#1F1F1F]">
             £{product.price}
@@ -126,7 +126,6 @@ const RecommendedProducts: React.FC<RecommendedProductsProps> = ({
       let score = 0;
       if (!currentProduct) return { ...p, score: 0 }; // Fallback if current product not found in list
 
-      // Scoring logic
       // Scoring logic - Prioritize Shape & Naming System as requested
       // Shape Match (Highest Priority)
       if ((p as any).shape && (currentProduct as any).shape && (p as any).shape === (currentProduct as any).shape) score += 10;
