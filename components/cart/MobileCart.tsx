@@ -418,17 +418,7 @@ const MobileCart: React.FC<MobileCartProps> = ({
                     <div className="p-4 bg-gray-50 border-b border-gray-200">
                         <div className="flex items-start gap-4">
                             {/* Product Image */}
-                            <div
-                                className="w-24 h-24 bg-white rounded border border-gray-200 flex items-center justify-center cursor-pointer overflow-hidden"
-                                onClick={() => {
-                                    const productId = item.product?.products?.skuid;
-                                    if (productId) {
-                                        navigate(`/product/${productId}`, {
-                                            state: { product: item.product?.products },
-                                        });
-                                    }
-                                }}
-                            >
+                            <div className="w-24 h-24 bg-white rounded border border-gray-200 flex items-center justify-center overflow-hidden">
                                 <img
                                     src={
                                         item.product?.products?.image ||

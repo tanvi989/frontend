@@ -759,12 +759,12 @@ const ProductPage: React.FC = () => {
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
-          {/* Back button - mobile */}
+          {/* Back button - mobile: go to /glasses */}
           <button
             type="button"
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/glasses")}
             className="absolute top-4 left-4 z-30 w-10 h-10 rounded-full bg-white/90 hover:bg-white border border-gray-200 shadow-sm flex items-center justify-center text-[#1F1F1F]"
-            aria-label="Go back"
+            aria-label="Go back to glasses"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -1149,12 +1149,12 @@ const ProductPage: React.FC = () => {
       <div className="hidden lg:flex flex-col lg:flex-row h-full min-h-screen items-start">
         {/* Left Column: Image Stack — main product images; small VTO preview when user has MFit */}
         <div className="lg:w-1/2 bg-white relative flex flex-col mt-24">
-          {/* Back button - left of me over image (desktop) */}
+          {/* Back button - go to /glasses (desktop) */}
           <button
             type="button"
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/glasses")}
             className="absolute top-6 left-6 z-30 flex items-center gap-2 rounded-full bg-white/90 hover:bg-white border border-gray-200 shadow-sm px-4 py-2.5 text-sm font-medium text-[#1F1F1F]"
-            aria-label="Go back"
+            aria-label="Go back to glasses"
           >
             <ArrowLeft className="w-5 h-5" />
             Back

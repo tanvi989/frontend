@@ -34,16 +34,20 @@ const LensCategoryCard = ({
   title,
   desc,
   type,
+  selected,
   onClick,
 }: {
   title: string;
   desc: string;
   type: "blue" | "clear" | "photo" | "sun";
+  selected?: boolean;
   onClick: () => void;
 }) => (
   <div
     onClick={onClick}
-    className="bg-[#F3F0E7] border border-[#232320] rounded-[20px] px-4 pt-3 pb-0 flex flex-col items-center text-center cursor-pointer h-full min-h-[220px] relative overflow-hidden"
+    className={`border-2 rounded-[20px] px-4 pt-3 pb-0 flex flex-col items-center text-center cursor-pointer h-full min-h-[220px] relative overflow-hidden transition-all ${
+      selected ? "border-[#025048] bg-white" : "border-[#232320] bg-[#F3F0E7] hover:border-[#025048]"
+    }`}
   >
     <div className="mb-0 relative z-10">
       <LensImage type={type} />
@@ -212,6 +216,12 @@ const SelectLensType: React.FC = () => {
   };
 
   const handleCategorySelect = (category: string) => {
+    setSelectedCategory(category);
+  };
+
+  const handleContinue = () => {
+    const category = selectedCategory;
+    if (!category) return;
     // Bifocal has no sunglasses packages – go straight to lens color
     const isBifocalSunglasses = category === "sun" && state?.lensType === "bifocal";
     const path = isBifocalSunglasses
@@ -482,8 +492,8 @@ const SelectLensType: React.FC = () => {
       </div>
 
       <div className="max-w-[1200px] mx-auto grid gap-2 mt-4 md:mt-2">
-        {!selectedCategory && (
-          <>
+        {/* Lens type category selection - select then Continue */}
+        <div>
             <div className="md:hidden">
               <div className="flex items-center justify-between pb-4 border-b border-black mb-6">
                 <span className="text-xl font-normal text-[#1F1F1F] uppercase tracking-widest whitespace-nowrap">
@@ -526,18 +536,21 @@ const SelectLensType: React.FC = () => {
                 title="Blue Protect"
                 desc="If you spend a lot of time on screens, this lens helps reduce strain from blue light."
                 type="blue"
+                selected={selectedCategory === "blue"}
                 onClick={() => handleCategorySelect("blue")}
               />
               <LensCategoryCard
                 title="Clear"
                 desc="Simple, sharp vision for regular daily use — no extras."
                 type="clear"
+                selected={selectedCategory === "clear"}
                 onClick={() => handleCategorySelect("clear")}
               />
               <LensCategoryCard
                 title="Photochromic"
                 desc="These lenses darken automatically in bright light, and stay clear indoors."
                 type="photo"
+                selected={selectedCategory === "photo"}
                 onClick={() => handleCategorySelect("photo")}
               />
               {state?.lensType !== "bifocal" && (
@@ -546,18 +559,30 @@ const SelectLensType: React.FC = () => {
                     title="Sunglasses"
                     desc="Turn your glasses into full sunglasses — great for outdoor time, with extra UV protection."
                     type="sun"
+                    selected={selectedCategory === "sun"}
                     onClick={() => handleCategorySelect("sun")}
                   />
                 </div>
               )}
             </div>
 
-            {/* Sunglasses card - only for non-bifocal */}
-          </>
-        )}
+            {/* Continue button - only when category selected */}
+            {selectedCategory && (
+              <div className="flex justify-center mt-8">
+                <button
+                  onClick={handleContinue}
+                  className="bg-[#025048] text-white px-12 py-4 rounded-full font-bold text-sm uppercase tracking-widest hover:bg-[#013a34] transition-colors shadow-md"
+                >
+                  Continue
+                </button>
+              </div>
+            )}
 
-        {/* BLUE PACKAGES */}
-        {selectedCategory === "blue" && (
+            {/* Sunglasses card - only for non-bifocal */}
+        </div>
+
+        {/* BLUE PACKAGES - hidden; user selects category then Continue to go to select-lens-packages */}
+        {false && selectedCategory === "blue" && (
           <div className="max-w-[900px] mx-auto animate-in slide-in-from-right-8 fade-in duration-300">
             <div className="text-center mb-10 relative">
               <button
@@ -624,8 +649,8 @@ const SelectLensType: React.FC = () => {
           </div>
         )}
 
-        {/* CLEAR PACKAGES */}
-        {selectedCategory === "clear" && (
+        {/* CLEAR PACKAGES - hidden; user selects category then Continue to go to select-lens-packages */}
+        {false && selectedCategory === "clear" && (
           <div className="max-w-[900px] mx-auto animate-in slide-in-from-right-8 fade-in duration-300">
             <div className="text-center mb-10 relative">
               <button

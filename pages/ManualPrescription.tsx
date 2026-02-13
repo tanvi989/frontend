@@ -349,9 +349,7 @@ const ManualPrescription: React.FC = () => {
         }
         queryClient.invalidateQueries({ queryKey: ["prescriptions"] });
       } catch (apiErr: any) {
-        console.error("Prescription API save failed:", apiErr);
-        const msg = apiErr?.response?.data?.detail || apiErr?.response?.data?.message || apiErr?.message || "Could not save to database";
-        alert("Prescription saved locally but could not save to database: " + (typeof msg === "string" ? msg : JSON.stringify(msg)));
+        console.warn("Prescription API save failed (saved locally):", apiErr?.response?.data?.detail || apiErr?.message);
       }
       await new Promise(resolve => setTimeout(resolve, 500));
 

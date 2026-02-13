@@ -122,7 +122,7 @@ const FRAME_COLOR_MAP: { [key: string]: string } = {
 
 const FILTER_OPTIONS = {
   Size: ["Large", "Medium", "Small"],
-  Brand: ["Berg", "Face A Face", "Leon", "Miyama"],
+  Brand: ["Berg", "K+", "Leon", "Miyama"],
   Styles: ["Full Frame", "Half Frame", "Rimless"],
   Gender: ["Men", "Women"],
 
@@ -717,6 +717,7 @@ const AllProducts: React.FC<AllProductsProps> = ({ mobileLayout = false }) => {
   useEffect(() => {
     setCurrentPage(1); // Reset page on filter change
     setVisibleMobileCount(48); // Reset mobile scroll on filter change
+    window.scrollTo({ top: 0, behavior: "smooth" }); // Keep user at top when filters/sort change, not at footer
   }, [selectedFilters, sortBy, effectiveTopMfit]); // Reset on both filter and sort changes
 
   // Split Logic: Mobile (Infinite) vs Desktop (Paginated)
@@ -827,7 +828,10 @@ const AllProducts: React.FC<AllProductsProps> = ({ mobileLayout = false }) => {
           </div>
 
           <div className="flex flex-col divide-y divide-gray-100">
-            <GenderFilter />
+            <GenderFilter
+              value={selectedFilters.Gender}
+              onChange={(g) => setSelectedFilters((prev) => ({ ...prev, Gender: g }))}
+            />
 
             <FilterSection title="Prices" isOpen={true}>
               {PRICES.map((price) => (
@@ -1241,11 +1245,6 @@ const AllProducts: React.FC<AllProductsProps> = ({ mobileLayout = false }) => {
                         <span className="text-xs md:text-lg font-bold text-[#1F1F1F] uppercase tracking-wider">
                           {product.naming_system}
                         </span>
-                        {getFrameWidth(product.skuid) != null && (
-                          <span className="text-[10px] md:text-xs text-gray-500 mt-0.5">
-                            Frame width: {getFrameWidth(product.skuid)} mm
-                          </span>
-                        )}
                       </div>
                       <span className="text-xs md:text-base font-bold text-[#1F1F1F] shrink-0 ml-1">
                         £{product.price}

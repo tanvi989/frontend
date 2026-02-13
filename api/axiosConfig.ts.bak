@@ -11,8 +11,8 @@ const store = {
 const error = (message: string) => ({ type: 'ERROR', payload: message });
 const success = (message: string) => ({ type: 'SUCCESS', payload: message });
 
-// Backend URL: use VITE_API_TARGET / VITE_API_URL from .env; default production backend
-export const API_BASE_URL = "https://livebackend.multifolks.com";
+// Backend URL: use VITE_API_TARGET / VITE_API_URL from .env; default local backend on port 5000
+export const API_BASE_URL = "http://localhost:5000";
 
 const env = (import.meta as any)?.env ?? {};
 let ENV_API_TARGET = (env.VITE_API_TARGET || env.VITE_API_URL || "").trim();
@@ -99,35 +99,26 @@ axios.interceptors.response.use(function (response: AxiosResponse) {
   const originalRequest = err.config as InternalAxiosRequestConfig & { _retry?: boolean };
   
   if (err.response?.status === 401 && originalRequest && !originalRequest._retry) {
-    // Do NOT retry cart mutations (add, update, delete) with guest_id when user had a token.
-    // Retrying would add to guest cart instead of user cart, causing old items to disappear.
-    const url = originalRequest.url || '';
-    const isCartMutation = originalRequest.method?.toUpperCase() !== 'GET' &&
-      (url.includes('/api/v1/cart/add') || url.includes('/api/v1/cart/item/') ||
-       url.includes('/api/v1/cart/quantity') || url.includes('/api/v1/cart/clear'));
-    const hadToken = !!localStorage.getItem('token');
-    if (isCartMutation && hadToken) {
-      localStorage.removeItem('token'); // Session invalid; let add fail so frontend can use localStorage
-      return Promise.reject(err);
-    }
-
     originalRequest._retry = true;
+    
+    // Remove invalid token
     localStorage.removeItem('token');
-
+    
+    // Ensure guest ID exists
     let guestId = localStorage.getItem('guest_id');
     if (!guestId) {
       guestId = 'guest_' + Math.random().toString(36).substr(2, 9) + Date.now();
       localStorage.setItem('guest_id', guestId);
     }
-
+    
     if (originalRequest.headers) {
       delete originalRequest.headers['Authorization'];
       originalRequest.headers['X-Guest-ID'] = guestId;
     }
-
+    
     return axios(originalRequest);
   }
-
+  
   return Promise.reject(err);
 });
 

@@ -27,6 +27,7 @@ const SelectPrescriptionSource: React.FC = () => {
   const [isGetMyFitOpen, setIsGetMyFitOpen] = useState(false);
   const [voiceMuted, setVoiceMuted] = useState(false);
   const [capturedPD, setCapturedPD] = useState<{ pdSingle?: number; pdRight?: number; pdLeft?: number } | null>(null);
+  const [pdFilledByMfit, setPdFilledByMfit] = useState(false);
 
   const pdVoiceText =
     "PD, made easy. Let's keep this simple. " +
@@ -63,12 +64,11 @@ const SelectPrescriptionSource: React.FC = () => {
     []
   );
 
-  // Auto-fill PD from product flow (e.g. back navigation) or from VTO/fit capture session (homepage → VTO → fit popup → this page)
+  // Load PD from flow/session into state (but don't show form initially – user must click a card first)
   useEffect(() => {
     if (!id) return;
     const flowHasPD = flow?.pdPreference === "know" && (flow?.pdSingle || (flow?.pdRight && flow?.pdLeft));
     if (flowHasPD) {
-      setPdPreference("know");
       setPdType(flow.pdType === "dual" ? "dual" : "single");
       if (flow.pdSingle) setPdSingle(flow.pdSingle);
       if (flow.pdRight) setPdRight(flow.pdRight);
@@ -81,7 +81,7 @@ const SelectPrescriptionSource: React.FC = () => {
     const hasTotal = typeof m.pd === "number" && m.pd > 0;
     const hasDual = typeof m.pd_left === "number" && typeof m.pd_right === "number" && m.pd_left > 0 && m.pd_right > 0;
     if (!hasTotal && !hasDual) return;
-    setPdPreference("know");
+    setPdFilledByMfit(true);
     if (hasDual) {
       setPdType("dual");
       setPdRight(roundPdToDropdownOption(m.pd_right, pdOptions));
@@ -98,16 +98,17 @@ const SelectPrescriptionSource: React.FC = () => {
     } else {
       const totalPd = hasTotal ? m.pd : (m.pd_left ?? 0) + (m.pd_right ?? 0);
       if (totalPd <= 0) return;
-      setPdType("single");
-      const roundedSingle = roundPdToDropdownOption(totalPd, pdSingleOptions);
-      setPdSingle(roundedSingle);
-      setPdRight("");
-      setPdLeft("");
+      setPdType("dual");
+      const half = totalPd / 2;
+      setPdRight(roundPdToDropdownOption(half, pdOptions));
+      setPdLeft(roundPdToDropdownOption(half, pdOptions));
+      setPdSingle("");
       if (id) {
         setProductFlow(id, {
           pdPreference: "know",
-          pdType: "single",
-          pdSingle: roundedSingle,
+          pdType: "dual",
+          pdRight: roundPdToDropdownOption(totalPd / 2, pdOptions),
+          pdLeft: roundPdToDropdownOption(totalPd / 2, pdOptions),
         });
       }
     }
@@ -191,58 +192,51 @@ const SelectPrescriptionSource: React.FC = () => {
   };
 
   const handleGenerateNewPd = () => {
-    if (id) setProductFlow(id, { pdPreference: "generate" });
-    setIsGetMyFitOpen(true);
+    const hasExistingPD = pdSingle || (pdRight && pdLeft);
+    if (hasExistingPD) {
+      // PD already exists (from session/flow) – show the form with values
+      setPdPreference("know");
+    } else {
+      // No PD – open MFit popup
+      if (id) setProductFlow(id, { pdPreference: "generate" });
+      setIsGetMyFitOpen(true);
+    }
   };
 
   // Auto-fill PD when MFit captures it (extra feature - doesn't show VTO result page)
   const handlePDCaptured = (pdData: { pdSingle?: number; pdRight?: number; pdLeft?: number }) => {
     setCapturedPD(pdData);
+    setPdFilledByMfit(true);
     setIsGetMyFitOpen(false);
-    
-    // Auto-select "I know my PD value" and fill the fields
     setPdPreference("know");
-    
-    if (pdData.pdSingle != null) {
-      // Single PD: use total PD value, rounded to nearest dropdown option
-      setPdType("single");
-      const roundedSingle = roundPdToDropdownOption(pdData.pdSingle, pdSingleOptions);
-      setPdSingle(roundedSingle);
-      setPdRight("");
-      setPdLeft("");
-    } else if (pdData.pdRight != null && pdData.pdLeft != null) {
-      // Dual PD: use right and left, rounded to nearest dropdown option
-      setPdType("dual");
-      const roundedRight = roundPdToDropdownOption(pdData.pdRight, pdOptions);
-      const roundedLeft = roundPdToDropdownOption(pdData.pdLeft, pdOptions);
-      setPdRight(roundedRight);
-      setPdLeft(roundedLeft);
-      setPdSingle("");
+
+    let roundedRight = "";
+    let roundedLeft = "";
+    if (pdData.pdRight != null && pdData.pdLeft != null) {
+      roundedRight = roundPdToDropdownOption(pdData.pdRight, pdOptions);
+      roundedLeft = roundPdToDropdownOption(pdData.pdLeft, pdOptions);
+    } else if (pdData.pdSingle != null) {
+      const half = pdData.pdSingle / 2;
+      roundedRight = roundPdToDropdownOption(half, pdOptions);
+      roundedLeft = roundPdToDropdownOption(half, pdOptions);
     } else if (pdData.pdRight != null || pdData.pdLeft != null) {
-      // Fallback: if only one eye, use it for both or calculate single
-      const singleValue = pdData.pdRight ?? pdData.pdLeft ?? 0;
-      if (singleValue > 0) {
-        setPdType("single");
-        const estimatedTotal = singleValue * 2;
-        const roundedSingle = roundPdToDropdownOption(estimatedTotal, pdSingleOptions);
-        setPdSingle(roundedSingle); // Estimate total from one eye
-        setPdRight("");
-        setPdLeft("");
-      }
+      const half = (pdData.pdRight ?? pdData.pdLeft ?? 0) / 2;
+      const total = half * 2;
+      roundedRight = roundPdToDropdownOption(total / 2, pdOptions);
+      roundedLeft = roundPdToDropdownOption(total / 2, pdOptions);
     }
-    
-    // Save to flow
-    if (id) {
-      const pdPayload: any = { pdPreference: "know" };
-      if (pdData.pdSingle != null) {
-        pdPayload.pdType = "single";
-        pdPayload.pdSingle = roundPdToDropdownOption(pdData.pdSingle, pdSingleOptions);
-      } else if (pdData.pdRight != null && pdData.pdLeft != null) {
-        pdPayload.pdType = "dual";
-        pdPayload.pdRight = roundPdToDropdownOption(pdData.pdRight, pdOptions);
-        pdPayload.pdLeft = roundPdToDropdownOption(pdData.pdLeft, pdOptions);
-      }
-      setProductFlow(id, pdPayload);
+    setPdType("dual");
+    setPdRight(roundedRight);
+    setPdLeft(roundedLeft);
+    setPdSingle("");
+
+    if (id && (roundedRight || roundedLeft)) {
+      setProductFlow(id, {
+        pdPreference: "know",
+        pdType: "dual",
+        pdRight: roundedRight,
+        pdLeft: roundedLeft,
+      });
     }
   };
 
@@ -366,33 +360,37 @@ const SelectPrescriptionSource: React.FC = () => {
           {pdPreference === "know" && (
             <div className="flex justify-center">
               <div className="w-full md:w-1/2 bg-[#F3F0E7] border-[1.8px] border-[#777] rounded-[24px] p-4 min-h-[150px] flex flex-col justify-center">
-                <p className="text-xs font-bold text-[#1F1F1F] uppercase tracking-wide mb-2">Choose one:</p>
-                <div className="flex flex-wrap gap-3 mb-2">
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="pdTypeCard"
-                      value="single"
-                      checked={pdType === "single"}
-                      onChange={() => setPdType("single")}
-                      className="w-3.5 h-3.5 text-[#014D40] focus:ring-[#014D40] border-gray-300"
-                    />
-                    <span className="text-xs font-medium text-[#1F1F1F]">Single PD (total distance)</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="pdTypeCard"
-                      value="dual"
-                      checked={pdType === "dual"}
-                      onChange={() => setPdType("dual")}
-                      className="w-3.5 h-3.5 text-[#014D40] focus:ring-[#014D40] border-gray-300"
-                    />
-                    <span className="text-xs font-medium text-[#1F1F1F]">Both eyes PD</span>
-                  </label>
-                </div>
+                <p className="text-xs font-bold text-[#1F1F1F] uppercase tracking-wide mb-2">
+                  {pdFilledByMfit ? "PD is autofilled by MFit" : "Choose one:"}
+                </p>
+                {!pdFilledByMfit && (
+                  <div className="flex flex-wrap gap-3 mb-2">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="pdTypeCard"
+                        value="single"
+                        checked={pdType === "single"}
+                        onChange={() => setPdType("single")}
+                        className="w-3.5 h-3.5 text-[#014D40] focus:ring-[#014D40] border-gray-300"
+                      />
+                      <span className="text-xs font-medium text-[#1F1F1F]">Single PD (total distance)</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="pdTypeCard"
+                        value="dual"
+                        checked={pdType === "dual"}
+                        onChange={() => setPdType("dual")}
+                        className="w-3.5 h-3.5 text-[#014D40] focus:ring-[#014D40] border-gray-300"
+                      />
+                      <span className="text-xs font-medium text-[#1F1F1F]">Both eyes PD</span>
+                    </label>
+                  </div>
+                )}
 
-                {pdType === "single" && (
+                {pdType === "single" && !pdFilledByMfit && (
                   <div className="mb-2">
                     <label htmlFor="select-pd-single-card" className="text-[10px] font-bold text-[#1F1F1F] uppercase tracking-wide block mb-1">
                       PD (mm)
@@ -419,7 +417,7 @@ const SelectPrescriptionSource: React.FC = () => {
                   </div>
                 )}
 
-                {pdType === "dual" && (
+                {(pdType === "dual" || pdFilledByMfit) && (
                   <div className="grid grid-cols-2 gap-2 mb-2">
                     <div className="flex flex-col gap-0.5">
                       <label htmlFor="select-pd-right-card" className="text-[10px] font-bold text-[#1F1F1F] uppercase tracking-wide">

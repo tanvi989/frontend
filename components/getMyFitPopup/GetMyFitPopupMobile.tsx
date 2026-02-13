@@ -224,6 +224,7 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
 
       const detectResult = await detectGlasses(imageDataUrl);
       if (detectResult.success && detectResult.glasses_detected) {
+        speak('If you are wearing glasses, no worries - our AI tool will automatically remove it.');
         setProcessingStep('Removing glasses...');
         try {
           const removeResult = await removeGlasses(imageDataUrl);

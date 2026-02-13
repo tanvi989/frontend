@@ -379,23 +379,25 @@ const SelectLensCoatings: React.FC = () => {
         </div>
 
         {/* Coating Options grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-12 max-w-[900px] mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8 max-w-[900px] mx-auto">
           {COATING_OPTIONS.map((coating, index) => {
             const isProcessingThis = processing && processingId === coating.id;
             const bottomCardCentering = index === 2 ? "md:col-span-2 md:w-1/2 md:mx-auto" : "";
+            const isSelected = selectedCoating === coating.id;
 
             return (
               <button
                 key={coating.id}
                 type="button"
-                onClick={() => handleSelectAndProceed(coating.id)}
+                onClick={() => !processing && setSelectedCoating(coating.id)}
                 disabled={processing}
                 className={`
                   relative rounded-2xl p-4 cursor-pointer 
                   border-2 flex items-center text-left min-h-[110px] gap-4 w-full
                   focus:outline-none focus:ring-0
                   ${bottomCardCentering}
-                  bg-[#F3F0E7] border-gray-400 hover:border-[#025048] hover:shadow-md transition-all
+                  transition-all
+                  ${isSelected ? "bg-white border-[#025048] shadow-md" : "bg-[#F3F0E7] border-gray-400 hover:border-[#025048] hover:shadow-md"}
                   ${processing ? "opacity-80" : ""}
                 `}
               >
@@ -428,16 +430,23 @@ const SelectLensCoatings: React.FC = () => {
                   )}
                 </div>
 
-                {/* Processing overlay text on the clicked card */}
-                {isProcessingThis && (
-                  <div className="absolute inset-0 bg-white/60 flex items-center justify-center rounded-2xl">
-                    <span className="font-bold text-sm text-[#025048]">Processing...</span>
-                  </div>
-                )}
               </button>
             );
           })}
         </div>
+
+        {/* Continue button - only when coating selected */}
+        {selectedCoating && (
+          <div className="flex justify-center mt-6 mb-8">
+            <button
+              onClick={() => handleSelectAndProceed(selectedCoating)}
+              disabled={processing}
+              className="bg-[#025048] text-white px-12 py-4 rounded-full font-bold text-sm uppercase tracking-widest hover:bg-[#013a34] transition-colors shadow-md disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {processing ? "Processing..." : "Continue"}
+            </button>
+          </div>
+        )}
 
         {/* Error Message */}
         {error && (

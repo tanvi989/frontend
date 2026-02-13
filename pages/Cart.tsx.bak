@@ -330,11 +330,9 @@ const Cart: React.FC = () => {
       }
     },
     onError: (err: any, _code, context: any) => {
-      const wasAutoApply = isAutoApplyingCouponRef.current;
-      hasAutoAppliedCouponRef.current = false;
       isAutoApplyingCouponRef.current = false;
       if (context?.previous) queryClient.setQueryData(["cart"], context.previous);
-      if (!wasAutoApply) alert(err.response?.data?.detail || "Failed to apply coupon");
+      alert(err.response?.data?.detail || "Failed to apply coupon");
     },
   });
 
@@ -416,10 +414,9 @@ const Cart: React.FC = () => {
     }
   };
 
-  // Auto-apply default coupon LAUNCH50 when cart has items, no coupon, and user is logged in (coupon API requires auth)
+  // Auto-apply default coupon LAUNCH50 when cart has items and no coupon (default applied for all users)
   useEffect(() => {
     if (hasAutoAppliedCouponRef.current) return;
-    if (!authData.isAuthenticated) return;
     const cart = cartResponse?.cart;
     const hasItems = Array.isArray(cart) && cart.length > 0;
     const noCoupon = !cartResponse?.coupon;
@@ -428,7 +425,7 @@ const Cart: React.FC = () => {
       isAutoApplyingCouponRef.current = true;
       applyCouponMutation("LAUNCH50");
     }
-  }, [authData.isAuthenticated, cartResponse?.cart, cartResponse?.coupon]);
+  }, [cartResponse?.cart, cartResponse?.coupon]);
 
   const handleRemoveCoupon = () => {
     removeCouponMutation();

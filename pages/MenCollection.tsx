@@ -124,7 +124,7 @@ const FRAME_COLOR_MAP: { [key: string]: string } = {
 
 const FILTER_OPTIONS = {
   Size: ["Large", "Medium", "Small"],
-  Brand: ["Berg", "Face A Face", "Leon", "Miyama"],
+  Brand: ["Berg", "K+", "Leon", "Miyama"],
   Styles: ["Full Frame", "Half Frame", "Rimless"],
   Gender: ["Men", "Women"],
   Shape: [
@@ -574,6 +574,7 @@ const MenCollection: React.FC = () => {
   useEffect(() => {
     setCurrentPage(1); // Reset to first page on desktop
     setVisibleMobileCount(48); // Reset mobile scroll on filter change
+    window.scrollTo({ top: 0, behavior: "smooth" }); // Keep user at top when filters/sort change
   }, [selectedFilters, sortBy]);
 
   const toggleFilterOption = (category: string, option: string) => {

@@ -124,7 +124,7 @@ const FRAME_COLOR_MAP: { [key: string]: string } = {
 
 const FILTER_OPTIONS = {
   Size: ["Large", "Medium", "Small"],
-  Brand: ["Berg", "Face A Face", "Leon", "Miyama"],
+  Brand: ["Berg", "K+", "Leon", "Miyama"],
   Styles: ["Full Frame", "Half Frame", "Rimless"],
   Gender: ["Men", "Women"],
   Shape: [
@@ -560,6 +560,7 @@ const WomenCollection: React.FC = () => {
   useEffect(() => {
     setCurrentPage(1); // Reset to first page on desktop
     setVisibleProducts(12); // Reset visible products on mobile
+    window.scrollTo({ top: 0, behavior: "smooth" }); // Keep user at top when filters/sort change
   }, [selectedFilters, sortBy]);
 
   const toggleFilterOption = (category: string, option: string) => {
@@ -978,7 +979,7 @@ const WomenCollection: React.FC = () => {
                             {product.naming_system}
                           </span>
                           {getFrameWidth(product.skuid) != null && (
-                            <span className="text-[10px] md:text-xs text-gray-500 mt-0.5">
+                            <span className="text-[10px] md:text-xs text-gray-500 mt-0.5 hidden">
                               Frame width: {getFrameWidth(product.skuid)} mm
                             </span>
                           )}

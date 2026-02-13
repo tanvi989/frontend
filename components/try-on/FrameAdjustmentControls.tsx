@@ -13,15 +13,20 @@ interface FrameAdjustmentControlsProps {
   values: AdjustmentValues;
   onChange: (values: AdjustmentValues) => void;
   onReset: () => void;
+  /** When true, hide Size control and lock scale at 100% (desktop MFit popup) */
+  hideSizeControl?: boolean;
 }
 
 export function FrameAdjustmentControls({
   values,
   onChange,
   onReset,
+  hideSizeControl = false,
 }: FrameAdjustmentControlsProps) {
   const handleChange = (key: keyof AdjustmentValues, value: number) => {
-    onChange({ ...values, [key]: value });
+    const next = { ...values, [key]: value };
+    if (hideSizeControl) next.scaleAdjust = 1;
+    onChange(next);
   };
 
   return (
@@ -81,26 +86,28 @@ export function FrameAdjustmentControls({
         />
       </div>
 
-      {/* Scale */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label className="text-xs text-muted-foreground flex items-center gap-1">
-            <ZoomIn className="h-3 w-3" />
-            Size
-          </label>
-          <span className="text-xs font-mono text-muted-foreground">
-            {(values.scaleAdjust * 100).toFixed(0)}%
-          </span>
+      {/* Scale – hidden on desktop MFit, always 100% when hidden */}
+      {!hideSizeControl && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-muted-foreground flex items-center gap-1">
+              <ZoomIn className="h-3 w-3" />
+              Size
+            </label>
+            <span className="text-xs font-mono text-muted-foreground">
+              {(values.scaleAdjust * 100).toFixed(0)}%
+            </span>
+          </div>
+          <Slider
+            value={[values.scaleAdjust]}
+            onValueChange={([v]) => handleChange('scaleAdjust', v)}
+            min={0.7}
+            max={1.3}
+            step={0.01}
+            className="w-full"
+          />
         </div>
-        <Slider
-          value={[values.scaleAdjust]}
-          onValueChange={([v]) => handleChange('scaleAdjust', v)}
-          min={0.7}
-          max={1.3}
-          step={0.01}
-          className="w-full"
-        />
-      </div>
+      )}
 
       {/* Rotation */}
       <div className="space-y-2">

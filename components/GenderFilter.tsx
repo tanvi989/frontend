@@ -1,14 +1,32 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Glasses } from 'lucide-react';
 
-export const GenderFilter: React.FC = () => {
+/** When value/onChange are provided, filter stays on same page (no navigate). Otherwise uses route (navigate). */
+export const GenderFilter: React.FC<{
+  value?: string[];
+  onChange?: (gender: string[]) => void;
+}> = ({ value, onChange }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const isMen = location.pathname.includes('/men');
-    const isWomen = location.pathname.includes('/women');
-    const isAll = location.pathname === '/glasses';
     const [isOpen, setIsOpen] = useState(true);
+
+    const useFilterMode = value !== undefined && typeof onChange === 'function';
+    const isAll = useFilterMode ? (value?.length === 0) : location.pathname === '/glasses';
+    const isMen = useFilterMode ? (value?.includes('Men') ?? false) : location.pathname.includes('/men');
+    const isWomen = useFilterMode ? (value?.includes('Women') ?? false) : location.pathname.includes('/women');
+
+    const handleAll = () => {
+        if (useFilterMode) onChange!([]);
+        else navigate('/glasses');
+    };
+    const handleMen = () => {
+        if (useFilterMode) onChange!(['Men']);
+        else navigate('/glasses/men');
+    };
+    const handleWomen = () => {
+        if (useFilterMode) onChange!(['Women']);
+        else navigate('/glasses/women');
+    };
 
     return (
         <div className="border-b border-gray-200">
@@ -25,7 +43,8 @@ export const GenderFilter: React.FC = () => {
             <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-40 opacity-100 pb-6' : 'max-h-0 opacity-0'}`}>
                 <div className="flex gap-3">
                     <button
-                        onClick={() => navigate('/glasses')}
+                        type="button"
+                        onClick={handleAll}
                         className={`flex-1 border rounded-lg p-3 flex flex-col items-center justify-center gap-2 transition-all duration-200 ${isAll
                             ? 'border-[#1F1F1F] bg-[#F9F9F9] text-[#1F1F1F] shadow-sm'
                             : 'border-gray-200 hover:border-gray-300 text-gray-500 hover:bg-gray-50'
@@ -37,7 +56,8 @@ export const GenderFilter: React.FC = () => {
                         <span className="text-[11px] font-bold uppercase tracking-wide">All</span>
                     </button>
                     <button
-                        onClick={() => navigate('/glasses/men')}
+                        type="button"
+                        onClick={handleMen}
                         className={`flex-1 border rounded-lg p-3 flex flex-col items-center justify-center gap-2 transition-all duration-200 ${isMen
                             ? 'border-[#1F1F1F] bg-[#F9F9F9] text-[#1F1F1F] shadow-sm'
                             : 'border-gray-200 hover:border-gray-300 text-gray-500 hover:bg-gray-50'
@@ -48,7 +68,8 @@ export const GenderFilter: React.FC = () => {
                     </button>
 
                     <button
-                        onClick={() => navigate('/glasses/women')}
+                        type="button"
+                        onClick={handleWomen}
                         className={`flex-1 border rounded-lg p-3 flex flex-col items-center justify-center gap-2 transition-all duration-200 ${isWomen
                             ? 'border-[#1F1F1F] bg-[#F9F9F9] text-[#1F1F1F] shadow-sm'
                             : 'border-gray-200 hover:border-gray-300 text-gray-500 hover:bg-gray-50'

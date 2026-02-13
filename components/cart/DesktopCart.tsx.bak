@@ -322,6 +322,7 @@ const DesktopCart: React.FC = () => {
         },
         onSuccess: (res: any) => {
             if (res.data.success) {
+                hasAutoAppliedCouponRef.current = true; // Only mark as applied when API succeeded (so auto-apply retries on failure)
                 refetch();
                 setCouponCode("");
                 if (!isAutoApplyingCouponRef.current) {
@@ -334,11 +335,10 @@ const DesktopCart: React.FC = () => {
             }
         },
         onError: (err: any, _code, context: any) => {
-            const wasAutoApply = isAutoApplyingCouponRef.current;
-            hasAutoAppliedCouponRef.current = false;
+            hasAutoAppliedCouponRef.current = false; // Allow auto-apply to retry on next load
             isAutoApplyingCouponRef.current = false;
             if (context?.previous) queryClient.setQueryData(["cart"], context.previous);
-            if (!wasAutoApply) alert(err.response?.data?.detail || "Failed to apply coupon");
+            alert(err.response?.data?.detail || "Failed to apply coupon");
         },
     });
 
@@ -404,18 +404,16 @@ const DesktopCart: React.FC = () => {
         }
     };
 
-    // Auto-apply default coupon LAUNCH50 when cart has items, no coupon, and user is logged in (coupon API requires auth)
+    // Auto-apply default coupon LAUNCH50 when cart has items and no coupon (default applied for all users)
     useEffect(() => {
         if (hasAutoAppliedCouponRef.current) return;
-        if (!authData.isAuthenticated) return;
         const hasItems = Array.isArray(cartItems) && cartItems.length > 0;
-        const noCoupon = !cartData?.coupon;
+        const noCoupon = !cartData?.coupon?.code;
         if (hasItems && noCoupon) {
-            hasAutoAppliedCouponRef.current = true;
             isAutoApplyingCouponRef.current = true;
             applyCouponMutation("LAUNCH50");
         }
-    }, [authData.isAuthenticated, cartItems?.length, cartData?.coupon]);
+    }, [cartItems?.length, cartData?.coupon]);
 
     const handleRemoveCoupon = () => {
         removeCouponMutation();
@@ -1150,7 +1148,24 @@ const DesktopCart: React.FC = () => {
                                             <div className="flex flex-col md:flex-row gap-6 md:gap-8 mt-4">
                                                 {/* Image Area */}
                                                 <div className="w-full md:w-[240px] flex flex-col items-center shrink-0">
-                                                    <div className="w-full aspect-[4/3] flex items-center justify-center mb-4 bg-[#F9FAFB] rounded-lg">
+                                                    <div
+                                                        className="w-full aspect-[4/3] flex items-center justify-center mb-4 bg-[#F9FAFB] rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                                                        onClick={() => {
+                                                            // PARSE ORIGINAL SKU from composite ID if needed
+                                                            const rawProductId = item.product_id || item.product?.products?.skuid;
+                                                            let productId = rawProductId;
+
+                                                            if (rawProductId && typeof rawProductId === 'string' && rawProductId.includes('_')) {
+                                                                productId = rawProductId.split('_')[0]; // Extract Real SKU
+                                                            }
+
+                                                            if (productId) {
+                                                                navigate(`/product/${productId}`, {
+                                                                    state: { product: item.product?.products }
+                                                                });
+                                                            }
+                                                        }}
+                                                    >
                                                         <img
                                                             src={
                                                                 item.product?.products?.image ||

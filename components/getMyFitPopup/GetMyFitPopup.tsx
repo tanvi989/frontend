@@ -247,7 +247,7 @@ const GetMyFitPopup: React.FC<GetMyFitPopupProps> = ({ open, onClose, initialSte
       const detectResult = await detectGlasses(imageDataUrl);
       
       if (detectResult.success && detectResult.glasses_detected) {
-        speak('Glasses detected.');
+        speak('If you are wearing glasses, no worries - our AI tool will automatically remove it.');
         setProcessingStep('Removing glasses...');
         try {
           const removeResult = await removeGlasses(imageDataUrl);
@@ -722,7 +722,7 @@ const GetMyFitPopup: React.FC<GetMyFitPopupProps> = ({ open, onClose, initialSte
                       </TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value="measurements" className="mt-0 focus-visible:outline-none bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><MeasurementsTab onViewMeasurements={() => setStep4Tab('frames')} /></TabsContent>
+                    <TabsContent value="measurements" className="mt-0 focus-visible:outline-none bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><MeasurementsTab onViewMeasurements={() => setStep4Tab('frames')} hideSizeControl /></TabsContent>
                     <TabsContent value="frames" className="mt-0 focus-visible:outline-none bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><FramesTab measurementsOnly onBackToMeasurements={() => setStep4Tab('measurements')} /></TabsContent>
                   </Tabs>
                 </div>

@@ -22,6 +22,8 @@ export interface MeasurementsTabProps {
   compactLayout?: boolean;
   /** When true (e.g. mobile popup), hide frame alignment controls and use 100% size by default. */
   hideFrameAlignment?: boolean;
+  /** When true (desktop MFit), hide Size control and keep scale at 100%. */
+  hideSizeControl?: boolean;
 }
 
 /** Face shape → frame suggestions for multifocals (Shapes to Pick, Why, Shapes to Avoid, Why) */
@@ -72,15 +74,17 @@ function getSuggestionForShape(faceShape: string | undefined) {
 
 const FIXED_100_ADJUSTMENTS: AdjustmentValues = { offsetX: 0, offsetY: 0, scaleAdjust: 1, rotationAdjust: 0 };
 
-export function MeasurementsTab({ onViewMeasurements, previewWidth = 384, previewHeight = 332, compactLayout = false, hideFrameAlignment = false }: MeasurementsTabProps = {}) {
+export function MeasurementsTab({ onViewMeasurements, previewWidth = 384, previewHeight = 332, compactLayout = false, hideFrameAlignment = false, hideSizeControl = false }: MeasurementsTabProps = {}) {
   const { capturedData, setCapturedData } = useCaptureData();
-  const [adjustments, setAdjustments] = useState<AdjustmentValues>(() =>
-    hideFrameAlignment
+  const [adjustments, setAdjustments] = useState<AdjustmentValues>(() => {
+    const base = hideFrameAlignment
       ? { ...FIXED_100_ADJUSTMENTS }
       : capturedData?.frameAdjustments
         ? { ...capturedData.frameAdjustments }
-        : { ...DEFAULT_ADJUSTMENTS }
-  );
+        : { ...DEFAULT_ADJUSTMENTS };
+    if (hideSizeControl) base.scaleAdjust = 1;
+    return base;
+  });
   const [testProduct, setTestProduct] = useState<{ dimensions?: string; name: string } | null>(null);
   const [showMeasurementConfirm, setShowMeasurementConfirm] = useState(false);
 
@@ -122,7 +126,7 @@ export function MeasurementsTab({ onViewMeasurements, previewWidth = 384, previe
   );
 
   const handleResetAdjustments = useCallback(() => {
-    const reset = { ...DEFAULT_ADJUSTMENTS };
+    const reset = { ...DEFAULT_ADJUSTMENTS, ...(hideSizeControl ? { scaleAdjust: 1 } : {}) };
     setAdjustments(reset);
     if (capturedData) {
       setCapturedData({
@@ -135,7 +139,7 @@ export function MeasurementsTab({ onViewMeasurements, previewWidth = 384, previe
         },
       });
     }
-  }, [capturedData, setCapturedData]);
+  }, [capturedData, setCapturedData, hideSizeControl]);
 
   const handleViewMeasurementsClick = useCallback(() => {
     if (!onViewMeasurements) return;
@@ -194,6 +198,7 @@ export function MeasurementsTab({ onViewMeasurements, previewWidth = 384, previe
                   values={adjustments}
                   onChange={handleAdjustmentsChange}
                   onReset={handleResetAdjustments}
+                  hideSizeControl={hideSizeControl}
                 />
               </div>
             )}
@@ -215,6 +220,7 @@ export function MeasurementsTab({ onViewMeasurements, previewWidth = 384, previe
                   values={adjustments}
                   onChange={handleAdjustmentsChange}
                   onReset={handleResetAdjustments}
+                  hideSizeControl={hideSizeControl}
                 />
               </div>
             )}

@@ -559,14 +559,18 @@ const SelectLensPackages: React.FC = () => {
                     ? SUNGLASSES_PACKAGES
                     : CLEAR_PACKAGES;
 
-  const handleSelectPackage = (pkgId: string) => {
+  const handlePackageClick = (pkgId: string) => {
     setSelectedPackage(pkgId);
+  };
+
+  const handleContinue = () => {
+    const pkgId = selectedPackage;
+    if (!pkgId || !id) return;
 
     // Find the package to get its price
     const selectedPkg = packages.find(p => p.id === pkgId);
     let priceValue = 0;
     if (selectedPkg) {
-      // Parse "£49" or "+£49" to number 49
       priceValue = parseFloat(selectedPkg.price.replace(/[^0-9.]/g, "")) || 0;
     }
 
@@ -582,7 +586,7 @@ const SelectLensPackages: React.FC = () => {
         product: product as any,
         selectedLensPackage: pkgId,
         selectedLensPrice: priceValue,
-        lensCategory: lensCategory, // Ensure lensCategory is preserved
+        lensCategory: lensCategory,
       },
     });
 
@@ -629,7 +633,7 @@ const SelectLensPackages: React.FC = () => {
   // Render package card component
   const PackageCard = ({ pkg }: { pkg: any }) => (
     <div
-      onClick={() => handleSelectPackage(pkg.id)}
+      onClick={() => handlePackageClick(pkg.id)}
       className={`rounded-[24px] p-5 md:p-6 cursor-pointer transition-all duration-300 border-2 group flex flex-col gap-3 w-full ${selectedPackage === pkg.id
         ? "bg-white border-[#025048] shadow-md"
         : "bg-[#F3F0E7] border-gray-200  hover:border-[#025048] hover:shadow-md"
@@ -772,6 +776,18 @@ const SelectLensPackages: React.FC = () => {
               </div>
             )}
           </>
+        )}
+
+        {/* Continue button - only when package selected */}
+        {selectedPackage && (
+          <div className="flex justify-center mt-8 mb-12">
+            <button
+              onClick={handleContinue}
+              className="bg-[#025048] text-white px-12 py-4 rounded-full font-bold text-sm uppercase tracking-widest hover:bg-[#013a34] transition-colors shadow-md"
+            >
+              Continue
+            </button>
+          </div>
         )}
 
         {/* Product Details Footer - Mobile Only */}

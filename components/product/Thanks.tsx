@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getPaymentStatus, getThankYou, sendInvoice } from '../../api/retailerApis';
+import { getPaymentStatus, getThankYou, sendInvoice, sendOrderConfirmationEmail } from '../../api/retailerApis';
 import { Loader } from '../Loader';
 import { clearOrderRelatedStorage } from '../../utils/productFlowStorage';
 
@@ -29,6 +29,18 @@ const Thanks: React.FC = () => {
 
     // Fallback for order_id if accessed directly or missing state
     const orderId = state?.order_id || searchParams.get('order_id');
+    const confirmationEmailSent = useRef(false);
+
+    // Send order confirmation email when user lands after payment (so they get mail even if webhook didn't run)
+    useEffect(() => {
+        if (!orderId || confirmationEmailSent.current) return;
+        confirmationEmailSent.current = true;
+        sendOrderConfirmationEmail(orderId).then((res: any) => {
+            if (res?.data?.sent) {
+                console.log('[Thanks] Order confirmation email sent');
+            }
+        });
+    }, [orderId]);
 
     const { isLoading, data: order, refetch } = useQuery({
         queryKey: ['thank-you', orderId],

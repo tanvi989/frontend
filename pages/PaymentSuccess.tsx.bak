@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { trackPurchase } from '@/utils/analytics';
-import { updateOrderWithCart, getThankYou, clearCart } from '@/api/retailerApis';
+import { updateOrderWithCart, getThankYou, clearCart, sendOrderConfirmationEmail } from '@/api/retailerApis';
 import { clearOrderRelatedStorage } from '@/utils/productFlowStorage';
 import { Loader } from '@/components/Loader';
 
@@ -19,9 +19,10 @@ const PaymentSuccess: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
-  const [countdown, setCountdown] = useState(10);
+  const [countdown, setCountdown] = useState(5);
   const [showMore, setShowMore] = useState(false);
   const orderId = searchParams.get('order_id');
+  const confirmationEmailSent = useRef(false);
 
   // Fetch full order details when we have order_id
   const { data: orderData, isLoading: orderLoading } = useQuery({
@@ -36,6 +37,28 @@ const PaymentSuccess: React.FC = () => {
   });
 
   const order = orderData;
+
+  // Send order confirmation email as soon as we have order_id in URL (Thank You page) – don't wait for order fetch
+  useEffect(() => {
+    if (!orderId || confirmationEmailSent.current) return;
+    confirmationEmailSent.current = true;
+    console.log('[PaymentSuccess] Sending order confirmation email for', orderId);
+    sendOrderConfirmationEmail(orderId)
+      .then((res: any) => {
+        const data = res?.data;
+        if (data?.sent) {
+          console.log('[PaymentSuccess] Order confirmation email sent to your inbox.');
+        } else if (data?.success === false) {
+          console.warn('[PaymentSuccess] Email not sent:', data?.message || 'unknown');
+        } else if (data?.sent === false && data?.message) {
+          console.log('[PaymentSuccess]', data.message);
+        }
+      })
+      .catch((err: any) => {
+        const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.message;
+        console.warn('[PaymentSuccess] Confirmation email request failed:', msg || err);
+      });
+  }, [orderId]);
 
   // Order progress step from backend (default: Processing)
   const orderStatus = (order?.order?.order_status ?? order?.order_status ?? order?.delivery_status ?? 'processing').toString().toLowerCase();
@@ -77,17 +100,16 @@ const PaymentSuccess: React.FC = () => {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          navigate('/orders');
-          return 0;
-        }
-        return prev - 1;
-      });
+      setCountdown((prev) => (prev <= 1 ? 0 : prev - 1));
     }, 1000);
     return () => clearInterval(timer);
-  }, [navigate]);
+  }, []);
+
+  useEffect(() => {
+    if (countdown === 0) {
+      navigate('/orders');
+    }
+  }, [countdown, navigate]);
 
   const handleViewOrders = () => navigate('/orders');
   const handleContinueShopping = () => navigate('/glasses');
