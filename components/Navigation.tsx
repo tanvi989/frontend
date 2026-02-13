@@ -1026,7 +1026,7 @@ export const Navigation: React.FC = () => {
                      </svg> */}
                       <img src="/sidemenus/app-menu-eyeglasses.png" />
                     </div>
-                    <span>EyeGlasses</span>
+                    <span>Glasses</span>
                     <div
                       className={`ml-auto text-gray-400 transition-transform duration-200 ${expandedMobileItem === "eyeglasses" ? "rotate-180" : ""
                         }`}
