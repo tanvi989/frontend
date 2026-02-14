@@ -1,11 +1,23 @@
 /**
  * GA4 / GTM e-commerce event tracking via dataLayer.
+ * Meta Pixel events fired on route change (see ScrollToTop) and here for e-commerce.
  * Configure GTM to fire GA4 tags on these events.
  */
 
 declare global {
   interface Window {
     dataLayer?: Record<string, unknown>[];
+    fbq?: (action: string, eventName: string, params?: Record<string, unknown>) => void;
+  }
+}
+
+function trackMetaEvent(eventName: string, params?: Record<string, unknown>) {
+  if (typeof window !== "undefined" && typeof window.fbq === "function") {
+    if (params) {
+      window.fbq("track", eventName, params);
+    } else {
+      window.fbq("track", eventName);
+    }
   }
 }
 
@@ -70,6 +82,13 @@ export function trackViewItem(product: Record<string, unknown>) {
       items: [item],
     },
   });
+  trackMetaEvent("ViewContent", {
+    content_name: item.item_name,
+    content_ids: [item.item_id],
+    content_type: "product",
+    value: item.price,
+    currency: "GBP",
+  });
 }
 
 export function trackAddToCart(product: Record<string, unknown>, quantity = 1) {
@@ -83,6 +102,14 @@ export function trackAddToCart(product: Record<string, unknown>, quantity = 1) {
       value: (item.price || 0) * quantity,
       items: [item],
     },
+  });
+  trackMetaEvent("AddToCart", {
+    content_name: item.item_name,
+    content_ids: [item.item_id],
+    content_type: "product",
+    value: (item.price || 0) * quantity,
+    currency: "GBP",
+    num_items: quantity,
   });
 }
 
@@ -115,6 +142,11 @@ export function trackBeginCheckout(cartItems: Array<Record<string, unknown>>) {
       items,
     },
   });
+  trackMetaEvent("InitiateCheckout", {
+    value,
+    currency: "GBP",
+    num_items: items.reduce((n, i) => n + (i.quantity || 1), 0),
+  });
 }
 
 export function trackPurchase(orderData: {
@@ -137,5 +169,11 @@ export function trackPurchase(orderData: {
       tax: orderData.tax ?? 0,
       items,
     },
+  });
+  trackMetaEvent("Purchase", {
+    value: orderData.value ?? 0,
+    currency: orderData.currency || "GBP",
+    order_id: orderData.transaction_id || `ord_${Date.now()}`,
+    num_items: items.length,
   });
 }
