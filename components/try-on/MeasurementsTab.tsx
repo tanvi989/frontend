@@ -1,13 +1,14 @@
 import { useState, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useCaptureData } from '@/contexts/CaptureContext';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import { saveCaptureSession } from '@/utils/captureSession';
 import { FrameAdjustmentControls } from './FrameAdjustmentControls';
 import { DEFAULT_ADJUSTMENTS, type AdjustmentValues } from '@/utils/frameOverlayUtils';
 import { getProductBySku } from '@/api/retailerApis';
 import VtoProductOverlay from '@/components/VtoProductOverlay';
 import { toast } from 'sonner';
+import { detectLandmarksFromImage } from '@/services/faceLandmarksFromImage';
 
 /** Same frame as /glasses product cards – use a product skuid from catalog */
 const TEST_FRAME_SKUID = 'E10A1012';
@@ -90,6 +91,7 @@ export function MeasurementsTab({ onViewMeasurements, previewWidth = 384, previe
   });
   const [testProduct, setTestProduct] = useState<{ dimensions?: string; name: string } | null>(null);
   const [showMeasurementConfirm, setShowMeasurementConfirm] = useState(false);
+  const [isAligning, setIsAligning] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -144,23 +146,39 @@ export function MeasurementsTab({ onViewMeasurements, previewWidth = 384, previe
     }
   }, [capturedData, setCapturedData, hideSizeControl]);
 
-  /** Align frame to detected eyes (AI/landmarks). Separate logic: uses eye position to place frame. */
-  const handleAlignToEyes = useCallback(() => {
-    const alignValues = { ...AI_ALIGN_ADJUSTMENTS, ...(hideSizeControl ? { scaleAdjust: 1 } : {}) };
-    setAdjustments(alignValues);
-    if (capturedData) {
-      setCapturedData({
+  /** Align frame to eyes: run MediaPipe on the displayed image for accurate pupil/eye detection, then place frame. */
+  const handleAlignToEyes = useCallback(async () => {
+    if (!capturedData?.processedImageDataUrl || isAligning) return;
+    setIsAligning(true);
+    try {
+      const newLandmarks = await detectLandmarksFromImage(capturedData.processedImageDataUrl);
+      if (!newLandmarks) {
+        toast.error('Could not detect eyes. Try a clearer photo or click Align again.');
+        return;
+      }
+      const alignValues = { ...AI_ALIGN_ADJUSTMENTS, ...(hideSizeControl ? { scaleAdjust: 1 } : {}) };
+      setAdjustments(alignValues);
+      const updated = {
         ...capturedData,
+        landmarks: newLandmarks,
+        cropRect: undefined,
         frameAdjustments: {
           offsetX: alignValues.offsetX,
           offsetY: alignValues.offsetY,
           scaleAdjust: alignValues.scaleAdjust,
           rotationAdjust: alignValues.rotationAdjust,
         },
-      });
+      };
+      setCapturedData(updated);
+      saveCaptureSession(updated);
       toast.success('Frame aligned to eyes');
+    } catch (e) {
+      console.error('Align to eyes failed:', e);
+      toast.error('Alignment failed. Try again.');
+    } finally {
+      setIsAligning(false);
     }
-  }, [capturedData, setCapturedData, hideSizeControl]);
+  }, [capturedData, setCapturedData, hideSizeControl, isAligning]);
 
   const handleViewMeasurementsClick = useCallback(() => {
     if (!onViewMeasurements) return;
@@ -189,13 +207,15 @@ export function MeasurementsTab({ onViewMeasurements, previewWidth = 384, previe
           <p className="text-xs font-bold text-gray-700 uppercase tracking-wide text-center">
             Please align how you like to wear glasses
           </p>
-          {!hideFrameAlignment && capturedData?.landmarks && (
+          {!hideFrameAlignment && capturedData?.processedImageDataUrl && (
             <button
               type="button"
               onClick={handleAlignToEyes}
-              className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-md bg-[#232320] text-white hover:bg-black transition-colors"
-              title="Align frame to detected eyes"
+              disabled={isAligning}
+              className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-md bg-[#232320] text-white hover:bg-black transition-colors disabled:opacity-70 disabled:cursor-wait flex items-center gap-1.5"
+              title="Detect eyes and align frame (MediaPipe)"
             >
+              {isAligning ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
               Align
             </button>
           )}
