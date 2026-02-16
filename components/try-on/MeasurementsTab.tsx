@@ -74,6 +74,9 @@ function getSuggestionForShape(faceShape: string | undefined) {
 
 const FIXED_100_ADJUSTMENTS: AdjustmentValues = { offsetX: 0, offsetY: 0, scaleAdjust: 1, rotationAdjust: 0 };
 
+/** AI eye-aligned position: frame placed using detected eyes/landmarks (no manual offset). */
+const AI_ALIGN_ADJUSTMENTS: AdjustmentValues = { offsetX: 0, offsetY: 0, scaleAdjust: 1, rotationAdjust: 0 };
+
 export function MeasurementsTab({ onViewMeasurements, previewWidth = 384, previewHeight = 332, compactLayout = false, hideFrameAlignment = false, hideSizeControl = false }: MeasurementsTabProps = {}) {
   const { capturedData, setCapturedData } = useCaptureData();
   const [adjustments, setAdjustments] = useState<AdjustmentValues>(() => {
@@ -141,6 +144,24 @@ export function MeasurementsTab({ onViewMeasurements, previewWidth = 384, previe
     }
   }, [capturedData, setCapturedData, hideSizeControl]);
 
+  /** Align frame to detected eyes (AI/landmarks). Separate logic: uses eye position to place frame. */
+  const handleAlignToEyes = useCallback(() => {
+    const alignValues = { ...AI_ALIGN_ADJUSTMENTS, ...(hideSizeControl ? { scaleAdjust: 1 } : {}) };
+    setAdjustments(alignValues);
+    if (capturedData) {
+      setCapturedData({
+        ...capturedData,
+        frameAdjustments: {
+          offsetX: alignValues.offsetX,
+          offsetY: alignValues.offsetY,
+          scaleAdjust: alignValues.scaleAdjust,
+          rotationAdjust: alignValues.rotationAdjust,
+        },
+      });
+      toast.success('Frame aligned to eyes');
+    }
+  }, [capturedData, setCapturedData, hideSizeControl]);
+
   const handleViewMeasurementsClick = useCallback(() => {
     if (!onViewMeasurements) return;
     setShowMeasurementConfirm(true);
@@ -164,9 +185,21 @@ export function MeasurementsTab({ onViewMeasurements, previewWidth = 384, previe
     <div className="space-y-4 animate-fadeIn">
       {/* Instruction + Face with test frame */}
       <div className={isCompact ? 'space-y-3 flex flex-col items-center' : 'space-y-3 text-left'}>
-        <p className="text-xs font-bold text-gray-700 uppercase tracking-wide text-center w-full">
-          Please align how you like to wear glasses
-        </p>
+        <div className="flex flex-wrap items-center justify-center gap-2 w-full">
+          <p className="text-xs font-bold text-gray-700 uppercase tracking-wide text-center">
+            Please align how you like to wear glasses
+          </p>
+          {!hideFrameAlignment && capturedData?.landmarks && (
+            <button
+              type="button"
+              onClick={handleAlignToEyes}
+              className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-md bg-[#232320] text-white hover:bg-black transition-colors"
+              title="Align frame to detected eyes"
+            >
+              Align
+            </button>
+          )}
+        </div>
         {/* Desktop: grid image left, controls right. Mobile (compactLayout): VTO centered, then measurement + controls below. */}
         {isCompact ? (
           <>
