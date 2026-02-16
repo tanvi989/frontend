@@ -27,6 +27,7 @@ import { Loader } from "../Loader";
 import CustomerCartView from "../CustomerCartView";
 import { CartItem } from "../../types";
 import { calculateCartSubtotal } from "../../utils/priceUtils";
+import { trackAddShippingInfo } from "../../utils/analytics";
 
 // Stripe **publishable** key only (never commit secret keys).
 // Set VITE_STRIPE_PUBLISHABLE_KEY in your .env (e.g. pk_test_... or pk_live_...)
@@ -1847,6 +1848,15 @@ const Payment: React.FC = () => {
                     ref={addressFormRef}
                     onNext={(data) => {
                       setAddressData(data);
+                      // GA4: add_shipping_info – user submitted shipping information during checkout
+                      trackAddShippingInfo({
+                        cartItems: carts,
+                        value: totalPayable,
+                        currency: "GBP",
+                        shippingTier: (locationState as any)?.shippingMethod
+                          || sessionStorage.getItem("cartShippingMethod")
+                          || (shippingCost >= 29 ? "express" : "standard"),
+                      });
                       if (window.innerWidth < 768) {
                         setCustomerCart(true); // Mobile: Show intermediate review
                       } else {

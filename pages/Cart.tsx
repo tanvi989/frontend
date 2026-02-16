@@ -169,6 +169,16 @@ const Cart: React.FC = () => {
     }
   }, [refetch, refetchPrescriptions]);
 
+  // Refetch cart when add-to-cart fires (e.g. from lens flow or another tab)
+  useEffect(() => {
+    const onCartUpdated = () => {
+      queryClient.invalidateQueries({ queryKey: ["cart"] });
+      refetch();
+    };
+    window.addEventListener("cart-updated", onCartUpdated);
+    return () => window.removeEventListener("cart-updated", onCartUpdated);
+  }, [queryClient, refetch]);
+
   console.log("🔍 DEBUG prescriptionsResponse RAW:", prescriptionsResponse);
   console.log(
     "🔍 DEBUG prescriptionsResponse?.data:",

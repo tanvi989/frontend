@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { trackPurchase } from '@/utils/analytics';
@@ -65,11 +65,24 @@ const PaymentSuccess: React.FC = () => {
     } catch (_) {}
   }, []);
 
+  // Fire Purchase once per success page (GA4 + Meta) – use ref to avoid duplicate from re-renders/Strict Mode
+  const purchaseTrackedRef = useRef(false);
   useEffect(() => {
+    const orderIdParam = searchParams.get('order_id');
     const sessionId = searchParams.get('session_id');
+    if (!orderIdParam || purchaseTrackedRef.current) return;
+    purchaseTrackedRef.current = true;
+    let value = 0;
+    try {
+      const raw = sessionStorage.getItem(PENDING_ORDER_SYNC_KEY);
+      if (raw) {
+        const data = JSON.parse(raw) as { total_payable?: number };
+        value = Number(data?.total_payable) || 0;
+      }
+    } catch (_) {}
     trackPurchase({
-      transaction_id: sessionId || `ord_${Date.now()}`,
-      value: 0,
+      transaction_id: orderIdParam || sessionId || `ord_${Date.now()}`,
+      value,
       currency: 'GBP',
       items: [],
     });

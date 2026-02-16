@@ -259,7 +259,36 @@ const SelectLensType: React.FC = () => {
 
       if (addToCartResponse?.data?.status) {
         trackAddToCart(product, 1);
-        const cartId = addToCartResponse.data.cart_id;
+        let cartId =
+          addToCartResponse.data.cart_id ??
+          addToCartResponse.data.data?.cart_id ??
+          addToCartResponse.data.data?.id ??
+          addToCartResponse.data.id;
+        if (!cartId) {
+          try {
+            const { getCart } = await import("../api/retailerApis");
+            const cartResponse: any = await getCart({});
+            const cart = cartResponse?.data?.cart;
+            if (Array.isArray(cart) && cart.length) {
+              const matching = cart.find(
+                (item: any) =>
+                  item.product?.products?.skuid === product.skuid ||
+                  item.product_id === product.skuid ||
+                  String(item.product_id || "").startsWith(String(product.skuid || product.id || ""))
+              );
+              cartId = matching?.cart_id ?? cart[cart.length - 1]?.cart_id;
+            }
+          } catch (e) {
+            console.warn("Recover cart_id:", e);
+          }
+        }
+
+        if (!cartId) {
+          queryClient.invalidateQueries({ queryKey: ["cart"] });
+          navigate("/cart");
+          setProcessing(null);
+          return;
+        }
 
         const priceValue =
           pkg.priceValue !== undefined

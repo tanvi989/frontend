@@ -203,11 +203,14 @@ const ProductPage: React.FC = () => {
     };
   }, [product?.images]);
 
-  // GA4: Track product view when product loads
+  // GA4 + Meta: Track product view once per product (avoid duplicate ViewContent from re-renders / Strict Mode)
+  const viewItemTrackedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (product) {
-      trackViewItem(product);
-    }
+    if (!product) return;
+    const productId = product.skuid ?? String(product.id ?? "");
+    if (!productId || viewItemTrackedRef.current === productId) return;
+    viewItemTrackedRef.current = productId;
+    trackViewItem(product);
   }, [product]);
 
   // Manual slide controls

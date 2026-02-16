@@ -11,14 +11,47 @@ declare global {
   }
 }
 
+/** Meta Pixel: ensure content_ids are string[] (required for catalog/Advantage+). */
+function metaParams(params?: Record<string, unknown>): Record<string, unknown> | undefined {
+  if (!params) return undefined;
+  const out = { ...params };
+  if (Array.isArray(out.content_ids)) {
+    out.content_ids = out.content_ids.map((id: unknown) => String(id));
+  }
+  return out;
+}
+
+/** Fire a Meta Pixel standard event. Retries if fbq not yet loaded (async script). */
 function trackMetaEvent(eventName: string, params?: Record<string, unknown>) {
-  if (typeof window !== "undefined" && typeof window.fbq === "function") {
-    if (params) {
-      window.fbq("track", eventName, params);
+  if (typeof window === "undefined") return;
+  const doFire = () => {
+    if (typeof window.fbq !== "function") return false;
+    const p = metaParams(params);
+    if (p && Object.keys(p).length > 0) {
+      window.fbq("track", eventName, p);
     } else {
       window.fbq("track", eventName);
     }
-  }
+    return true;
+  };
+  if (doFire()) return;
+  setTimeout(() => {
+    if (!doFire()) setTimeout(doFire, 250);
+  }, 150);
+}
+
+/** Fire Meta Pixel PageView. Retries if fbq not yet loaded (async script). Call on every SPA route change. */
+export function trackMetaPageView() {
+  if (typeof window === "undefined") return;
+  const fire = () => {
+    if (typeof window.fbq === "function") {
+      window.fbq("track", "PageView");
+      return true;
+    }
+    return false;
+  };
+  if (fire()) return;
+  setTimeout(() => { if (!fire()) setTimeout(fire, 250); }, 150);
 }
 
 type GA4Item = {
@@ -45,12 +78,18 @@ function toGA4Item(p: {
   frameColor?: string;
   item_variant?: string;
   quantity?: number;
+  item_category?: string;
+  style?: string;
+  gender?: string;
+  category?: string;
 }): GA4Item {
   const price = typeof p.price === "string" ? parseFloat(p.price.replace(/[^0-9.]/g, "")) || 0 : Number(p.price) || 0;
+  const itemCategory = p.item_category || p.category || (p.style ? `Style: ${p.style}` : undefined) || (p.gender ? `Gender: ${p.gender}` : undefined) || "Eyeglasses";
   return {
     item_id: p.skuid || String(p.id || ""),
     item_name: p.name,
     item_brand: p.brand,
+    item_category: itemCategory,
     price,
     quantity: p.quantity ?? 1,
     item_variant: p.frameColor || p.item_variant,
@@ -70,6 +109,10 @@ export function trackViewItemList(products: Record<string, unknown>[], listId?: 
   });
 }
 
+/**
+ * GA4 view_item + Meta ViewContent.
+ * Use this event in GA4 to see "most viewed products": Reports → Explore → Event = view_item, Dimension = Item name or Item ID, Metric = Event count.
+ */
 export function trackViewItem(product: Record<string, unknown>) {
   ensureDataLayer();
   const p = product as any;
@@ -81,12 +124,16 @@ export function trackViewItem(product: Record<string, unknown>) {
       value: item.price,
       items: [item],
     },
+    // For "most viewed" reporting: item_id and item_name are the key dimensions in GA4
+    view_item_reporting: "most_viewed",
   });
+  // Meta Pixel standard event: ViewContent (product page) – use in Meta for content engagement / audiences
   trackMetaEvent("ViewContent", {
+    content_ids: [String(item.item_id || "")].filter(Boolean),
     content_name: item.item_name,
-    content_ids: [item.item_id],
     content_type: "product",
-    value: item.price,
+    content_category: item.item_category,
+    value: Number(item.price) || 0,
     currency: "GBP",
   });
 }
@@ -103,13 +150,16 @@ export function trackAddToCart(product: Record<string, unknown>, quantity = 1) {
       items: [item],
     },
   });
+  // Meta Pixel standard event: AddToCart
+  const value = (Number(item.price) || 0) * quantity;
   trackMetaEvent("AddToCart", {
+    content_ids: [String(item.item_id || "")].filter(Boolean),
     content_name: item.item_name,
-    content_ids: [item.item_id],
     content_type: "product",
-    value: (item.price || 0) * quantity,
+    value,
     currency: "GBP",
     num_items: quantity,
+    contents: [{ id: String(item.item_id || ""), quantity, item_price: Number(item.price) || 0 }],
   });
 }
 
@@ -142,10 +192,37 @@ export function trackBeginCheckout(cartItems: Array<Record<string, unknown>>) {
       items,
     },
   });
+  // Meta Pixel standard event: InitiateCheckout
+  const numItems = items.reduce((n, i) => n + (i.quantity || 1), 0);
   trackMetaEvent("InitiateCheckout", {
     value,
     currency: "GBP",
-    num_items: items.reduce((n, i) => n + (i.quantity || 1), 0),
+    num_items: numItems,
+    content_ids: items.map((i) => String(i.item_id || "")).filter(Boolean),
+    content_type: "product",
+  });
+}
+
+/** GA4: add_shipping_info – when user submits shipping information during checkout */
+export function trackAddShippingInfo(params: {
+  cartItems: Array<Record<string, unknown>>;
+  value: number;
+  currency?: string;
+  shippingTier?: string;
+}) {
+  ensureDataLayer();
+  const items: GA4Item[] = (params.cartItems || []).map((item: any) =>
+    item?.product?.products ? toGA4Item(mapCartItemToProduct(item)) : toGA4Item(item)
+  );
+  const payload: Record<string, unknown> = {
+    currency: params.currency || "GBP",
+    value: params.value,
+    items,
+  };
+  if (params.shippingTier) payload.shipping_tier = params.shippingTier;
+  window.dataLayer!.push({
+    event: "add_shipping_info",
+    ecommerce: payload,
   });
 }
 
@@ -170,10 +247,21 @@ export function trackPurchase(orderData: {
       items,
     },
   });
+  // Meta Pixel standard event: Purchase (value + currency required; content_ids/contents for catalog)
+  const purchaseValue = Number(orderData.value) ?? 0;
+  const currency = orderData.currency || "GBP";
+  const orderId = orderData.transaction_id || `ord_${Date.now()}`;
   trackMetaEvent("Purchase", {
-    value: orderData.value ?? 0,
-    currency: orderData.currency || "GBP",
-    order_id: orderData.transaction_id || `ord_${Date.now()}`,
+    value: purchaseValue,
+    currency,
+    order_id: orderId,
     num_items: items.length,
+    content_ids: items.map((i) => String(i.item_id || "")).filter(Boolean),
+    content_type: "product",
+    contents: items.map((i) => ({
+      id: String(i.item_id || ""),
+      quantity: i.quantity ?? 1,
+      item_price: Number(i.price) || 0,
+    })),
   });
 }

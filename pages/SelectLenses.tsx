@@ -357,23 +357,44 @@ const SelectLenses: React.FC = () => {
       const addToCartResponse: any = await addToCart(product, "instant");
       if (addToCartResponse?.data?.status) {
         trackAddToCart(product, 1);
-        const cartId = addToCartResponse.data.cart_id;
-        // Associate selected lens option with the cart (best-effort)
-        try {
-          if (typeof selectLens === "function") {
-            await selectLens(
-              product.id || "unknown-sku",
-              cartId,
-              option.id,
-              option
-            );
+        let cartId =
+          addToCartResponse.data.cart_id ??
+          addToCartResponse.data.data?.cart_id ??
+          addToCartResponse.data.data?.id ??
+          addToCartResponse.data.id;
+        if (!cartId) {
+          try {
+            const { getCart } = await import("../api/retailerApis");
+            const cartResponse: any = await getCart({});
+            const cart = cartResponse?.data?.cart;
+            if (Array.isArray(cart) && cart.length) {
+              const matching = cart.find(
+                (item: any) =>
+                  item.product?.products?.skuid === product.skuid ||
+                  item.product_id === product.skuid ||
+                  String(item.product_id || "").startsWith(String(product.skuid || product.id || ""))
+              );
+              cartId = matching?.cart_id ?? cart[cart.length - 1]?.cart_id;
+            }
+          } catch (e) {
+            console.warn("Recover cart_id:", e);
           }
-          // Invalidate cart/query cache so UI updates elsewhere
-          queryClient.invalidateQueries({ queryKey: ["cart"] });
-        } catch (err) {
-          console.error("Failed to select lens:", err);
         }
-        // Navigate to cart after selection (adjust as needed)
+        if (cartId) {
+          try {
+            if (typeof selectLens === "function") {
+              await selectLens(
+                product.skuid || product.id || "unknown-sku",
+                cartId,
+                option.id,
+                option
+              );
+            }
+          } catch (err) {
+            console.error("Failed to select lens:", err);
+          }
+        }
+        queryClient.invalidateQueries({ queryKey: ["cart"] });
         navigate("/cart");
       }
     } catch (error) {

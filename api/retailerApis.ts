@@ -254,7 +254,8 @@ export const addToCart = (products: any, flag: any, prescription?: any, options?
     pdLeft?: string;
 }) => {
     // Always send to Backend (Guest ID handled by axios interceptor)
-    const uniqueSku = `${products.skuid || products.id}_${Date.now()}`; // Generate unique SKU to force new item
+    // Backend expects product_id = catalog SKU so it can look up the product (same as syncLocalCartToBackend)
+    const catalogProductId = (String(products.skuid ?? products.id ?? "").trim()) || `item_${Date.now()}`;
 
     const framePrice = parsePrice(products.price ?? products.list_price ?? 0);
     const lensPrice = options?.lensPackagePrice ?? 0;
@@ -267,7 +268,7 @@ export const addToCart = (products: any, flag: any, prescription?: any, options?
     const subCategory = options?.lensPackage || (options?.lensCategory === "sun" ? "1.56" : "Single Vision");
 
     const itemData: any = {
-        product_id: uniqueSku, // Use unique SKU
+        product_id: catalogProductId,
         name: products.name || products.product_name,
         image: products.image,
         price: totalPrice,
@@ -324,12 +325,29 @@ export const addToCart = (products: any, flag: any, prescription?: any, options?
         itemData.prescription = prescription;
     }
 
-    console.log("DEBUG: addToCart called with UNIQUE SKU", uniqueSku, itemData);
+    console.log("DEBUG: addToCart called with product_id", catalogProductId, itemData);
     console.log("DEBUG: Current Guest ID:", localStorage.getItem('guest_id'));
 
     function addToLocalAndReturnSuccess(): Promise<{ data: { success: true; status: true; cart_id: number; message?: string } }> {
         try {
-            const localItem = addToLocalCart(itemData);
+            // Sanitize to avoid circular refs (addToLocalCart uses JSON.stringify)
+            let safeItem: any = itemData;
+            try {
+                safeItem = JSON.parse(JSON.stringify(itemData));
+            } catch (_) {
+                safeItem = {
+                    product_id: itemData.product_id,
+                    name: itemData.name,
+                    image: itemData.image,
+                    price: itemData.price,
+                    quantity: itemData.quantity ?? 1,
+                    product_details: itemData.product_details || {},
+                    product: itemData.product || { products: { name: itemData.name, price: itemData.price, image: itemData.image, skuid: products.skuid || products.id } },
+                    lens: itemData.lens || {},
+                    flag: itemData.flag,
+                };
+            }
+            const localItem = addToLocalCart(safeItem);
             return Promise.resolve({
                 data: { success: true, status: true, cart_id: localItem.cart_id, message: "Added to cart (saved locally)" }
             });
@@ -348,10 +366,12 @@ export const addToCart = (products: any, flag: any, prescription?: any, options?
             console.log("DEBUG: addToCart response:", response.data);
             if (response?.data && (response.data.success === true || response.data.status === true)) {
                 if (typeof window !== "undefined") window.dispatchEvent(new Event("cart-updated"));
-                return {
-                    ...response,
-                    data: { ...response.data, status: true, success: true }
-                };
+                const d = response.data as any;
+                const data = { ...d, status: true, success: true };
+                // Ensure cart_id is at top level (backend may return data.data.cart_id or data.id)
+                if (data.cart_id == null && (d.data?.cart_id != null || d.data?.id != null)) data.cart_id = d.data.cart_id ?? d.data.id;
+                if (data.cart_id == null && d.id != null) data.cart_id = d.id;
+                return { ...response, data };
             }
             console.warn("addToCart: API returned success false, using localStorage");
             return addToLocalAndReturnSuccess();
