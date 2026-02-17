@@ -78,9 +78,9 @@ const SelectPrescriptionType: React.FC = () => {
   // Helper function to get the page title based on state
   const getPageTitle = () => {
     if (expanded && selectedType === "progressive") {
-      return "SELECT PROGRESSIVE TYPE";
+      return "SELECT MULTIFOCAL TYPE";
     }
-    return "SELECT MULTIFOCAL TYPE";
+    return "SELECT LENS TYPE";
   };
 
   return (

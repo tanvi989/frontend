@@ -429,7 +429,7 @@ export const Navigation: React.FC = () => {
                     : "bg-[#F3CB0A]/90 hover:bg-white/90 backdrop-blur-sm"
                     }`}
                 >
-                  Login / Sign in
+                 Login / Sign Up
                 </button>
               )}
             </div>
@@ -526,7 +526,7 @@ export const Navigation: React.FC = () => {
                   : "bg-[#F3CB0A]/90 hover:bg-white/90 backdrop-blur-sm"
                   }`}
               >
-                Login / Sign in
+       Login / Sign Up
               </button>
             )}
           </div>

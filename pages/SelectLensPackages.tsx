@@ -639,10 +639,10 @@ const SelectLensPackages: React.FC = () => {
 
   // Lens index image map – 1.50/1.56 keeps the CDN image; the rest use local public assets
   const lensIndexImages: { [key: string]: string } = {
-    "1.50/1.56": "https://cdn.multifolks.com/msite/images/layers-dark.png",
-    "1.59/1.61": "/1.61_index.jpg",
-    "1.67":      "/1.67_index.jpg",
-    "1.74":      "/1.74_index.jpg",
+    "1.50/1.56": "/oneindex.png",
+    "1.59/1.61": "/oneindex1.png",
+    "1.67":      "/oneindex2.png",
+    "1.74":      "/oneindex3.png",
   };
 
   // Lens index data for the modal
@@ -661,7 +661,7 @@ const SelectLensPackages: React.FC = () => {
     },
     {
       id: "1.74",
-      features: ["40% Thinner The 1.50/1.56", "For All Powers"]
+      features: ["35% Thinner The 1.50/1.56", "For All Powers"]
     }
   ];
 
@@ -963,14 +963,24 @@ const SelectLensPackages: React.FC = () => {
                       1.74
                     </h6>
                     <ul className="text-sm text-gray-700 space-y-1">
-                      <li>40% Thinner The 1.50/1.56</li>
+                      <li>35% Thinner The 1.50/1.56</li>
                       <li>For All Powers</li>
                     </ul>
                   </div>
                 </li>
               </ul>
+                    <p>
+              What lens thickness should i get ?
+Lower index lenses are more affordable, but best for mild prescriptions.
+High-index lenses are thinner, lighter, and more refined — perfect for stronger prescriptions.
+
+At MultiFolks, we make it simple.
+We include 1.61 thin lenses at no extra cost in our standard progressives — so you get lighter, better-looking lenses without paying more.
+            </p>
             </div>
+      
           </div>
+          
         </div>
       )}
     </div>

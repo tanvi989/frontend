@@ -858,19 +858,19 @@ const handleTopMfitToggle = () => {
 {/* --- Shop Our Range Banner --- */}
 <div className="w-full mx-auto mb-0 md:mb-8 px-0 overflow-hidden">
   {/* Mobile Banner */}
-  <div className="block lg:hidden w-full h-[200px] sm:h-[250px]">
+  <div className="block lg:hidden w-full">
     <img
-      src="/glasses _mobile.jpg"
+      src="/glasses_mobile.jpg"
       alt="Shop Our Range"
-      className="w-full h-full object-cover"
+      className="w-full h-auto"
     />
   </div>
   {/* Desktop Banner */}
-  <div className="hidden lg:block w-full h-[500px] xl:h-[500px]">
+  <div className="hidden lg:block w-full">
     <img
       src="/glasses_desktop.jpg"
       alt="Shop Our Range"
-      className="w-full h-full object-cover"
+      className="w-full h-auto"
     />
   </div>
 </div>

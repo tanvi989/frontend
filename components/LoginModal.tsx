@@ -144,7 +144,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                                     Welcome to Multifolks
                                 </h2>
                                 <p className="text-[#757575] text-[15px] leading-relaxed font-medium">
-                                    Enter your email to get Login / Signup
+                                    Enter your email to  Login / Signup
                                 </p>
                             </div>
                         )}
@@ -175,9 +175,24 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                                 >
                                     Continue
                                 </button>
-                                  <p className="text-[#757575] text-[10px] leading-relaxed font-medium">
-                                   We will use your email to send you latest offers , deals , collections  and details relating to your orders
-                                </p>
+                      <p className="text-[#757575] text-[10px] leading-relaxed font-medium">
+    We'll use your email to send order updates and important service messages.
+  </p>
+
+  <div className="flex items-start gap-2 mt-2">
+    <input
+      type="checkbox"
+      id="marketingOptIn"
+      defaultChecked
+      className="mt-0.5 cursor-pointer w-3.5 h-3.5 accent-black"
+    />
+    <label
+      htmlFor="marketingOptIn"
+      className="text-[#757575] text-[10px] leading-relaxed font-medium cursor-pointer"
+    >
+      With your permission, we may also share helpful offers and vision care tips — you can opt out anytime.
+    </label>
+  </div>
                             </form>
                         ) : step === "password" ? (
                             <form onSubmit={handleLoginSubmit} className="flex flex-col gap-5">
