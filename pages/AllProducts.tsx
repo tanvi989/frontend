@@ -730,7 +730,7 @@ const handleTopMfitToggle = () => {
   };
 
   /** Frame width range for MFit Top Matches: face−6 to face+15 mm (e.g. face 120 → 114–135 mm) */
-  const FRAME_WIDTH_MIN_OFFSET_MM = -6; // frame can be 6mm smaller than face
+  const FRAME_WIDTH_MIN_OFFSET_MM = -2; // frame can be 6mm smaller than face
   const FRAME_WIDTH_MAX_OFFSET_MM = 15; // frame can be 15mm bigger than face
 
   // Products whose frame width is in range [faceWidth−6, faceWidth+15] mm, sorted by closest match.
@@ -1544,7 +1544,7 @@ const handleTopMfitToggle = () => {
 
       {/* Floating Adjust frame - bottom right, closed by default */}
       {fitEnabled && captureSession && (
-        <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
+        <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2" style={{ display: 'none' }}>
           {showAdjustFrame ? (
             <div className="bg-white rounded-xl shadow-xl border border-gray-200 p-4 w-72 max-w-[calc(100vw-2rem)]">
               <div className="flex items-center justify-between mb-3">
