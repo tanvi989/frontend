@@ -21,6 +21,14 @@ export const DEFAULT_ADJUSTMENTS: AdjustmentValues = {
   rotationAdjust: 0,
 };
 
+/** Desktop-only default: Size 85% – used for GetMyFit popup, /glasses, product page, share */
+export const DEFAULT_ADJUSTMENTS_DESKTOP: AdjustmentValues = {
+  offsetX: -16,
+  offsetY: 2,
+  scaleAdjust: 0.85,
+  rotationAdjust: 0,
+};
+
 export interface FrameTransformResult {
   midX: number;
   midY: number;

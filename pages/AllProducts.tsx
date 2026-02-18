@@ -22,7 +22,7 @@ import { trackViewItemList } from "@/utils/analytics";
 import { filterExcludedBrandProducts } from "@/utils/excludedBrands";
 import { getFrameWidth } from "@/data/frameWidthBySkuid";
 import { FrameAdjustmentControls } from "@/components/try-on/FrameAdjustmentControls";
-import { DEFAULT_ADJUSTMENTS, type AdjustmentValues } from "@/utils/frameOverlayUtils";
+import { DEFAULT_ADJUSTMENTS, DEFAULT_ADJUSTMENTS_DESKTOP, type AdjustmentValues } from "@/utils/frameOverlayUtils";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 // --- MOCK DATA REMOVED ---
@@ -393,7 +393,8 @@ const AllProducts: React.FC<AllProductsProps> = ({ mobileLayout = false }) => {
   const [capturedSession, setCapturedSession] = useState<any>(null);
   const [captureSessionState, setCaptureSessionState] = useState<any>(null);
   const [showAdjustFrame, setShowAdjustFrame] = useState(false);
-  const [frameAdjustments, setFrameAdjustments] = useState<AdjustmentValues>({ ...DEFAULT_ADJUSTMENTS });
+  const defaultFrameAdj = mobileLayout ? DEFAULT_ADJUSTMENTS : DEFAULT_ADJUSTMENTS_DESKTOP;
+  const [frameAdjustments, setFrameAdjustments] = useState<AdjustmentValues>(() => ({ ...defaultFrameAdj }));
   const [sortBy, setSortBy] = useState(SORT_OPTIONS[0]);
   const [isSortOpen, setIsSortOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -439,11 +440,12 @@ const AllProducts: React.FC<AllProductsProps> = ({ mobileLayout = false }) => {
       const session = getCaptureSession();
       setCaptureSessionState(session);
       if (session?.frameAdjustments) {
+        const fallback = mobileLayout ? DEFAULT_ADJUSTMENTS : DEFAULT_ADJUSTMENTS_DESKTOP;
         setFrameAdjustments({
-          offsetX: session.frameAdjustments.offsetX ?? DEFAULT_ADJUSTMENTS.offsetX,
-          offsetY: session.frameAdjustments.offsetY ?? DEFAULT_ADJUSTMENTS.offsetY,
-          scaleAdjust: session.frameAdjustments.scaleAdjust ?? DEFAULT_ADJUSTMENTS.scaleAdjust,
-          rotationAdjust: session.frameAdjustments.rotationAdjust ?? DEFAULT_ADJUSTMENTS.rotationAdjust,
+          offsetX: session.frameAdjustments.offsetX ?? fallback.offsetX,
+          offsetY: session.frameAdjustments.offsetY ?? fallback.offsetY,
+          scaleAdjust: session.frameAdjustments.scaleAdjust ?? fallback.scaleAdjust,
+          rotationAdjust: session.frameAdjustments.rotationAdjust ?? fallback.rotationAdjust,
         });
       }
     } else {
@@ -1559,7 +1561,7 @@ const handleTopMfitToggle = () => {
               <FrameAdjustmentControls
                 values={frameAdjustments}
                 onChange={handleFrameAdjustChange}
-                onReset={() => handleFrameAdjustChange({ ...DEFAULT_ADJUSTMENTS })}
+                onReset={() => handleFrameAdjustChange({ ...(mobileLayout ? DEFAULT_ADJUSTMENTS : DEFAULT_ADJUSTMENTS_DESKTOP) })}
               />
             </div>
           ) : null}

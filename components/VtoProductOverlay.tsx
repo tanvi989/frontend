@@ -7,8 +7,10 @@ import { getVtoImageUrl } from '@/api/retailerApis';
 import { computeFrameOverlayTransform } from '@/utils/frameOverlayTransform';
 import { Share2, Download, Copy } from 'lucide-react';
 
-/** Defaults matching FramesTab so /glasses matches VTO when no adjustments saved */
-const DEFAULT_FRAME_ADJUSTMENTS = { offsetX: -14, offsetY: -23, scaleAdjust: 1.3, rotationAdjust: 0 };
+/** Desktop fallback when no frameAdjustments in session – 85% size. Mobile uses different scale via scaleBoost. */
+const DEFAULT_FRAME_ADJUSTMENTS_DESKTOP = { offsetX: -16, offsetY: 2, scaleAdjust: 0.85, rotationAdjust: 0 };
+/** Mobile fallback – keep existing so mobile logic untouched */
+const DEFAULT_FRAME_ADJUSTMENTS_MOBILE = { offsetX: -14, offsetY: -23, scaleAdjust: 1.3, rotationAdjust: 0 };
 
 /** Convert landmark 0-1 from full image to 0-1 in cropped image using cropRect */
 function landmarkFullToCropped(
@@ -77,7 +79,9 @@ export function VtoProductOverlay({
   const [sharePopupLoading, setSharePopupLoading] = useState(false);
 
   const vtoImageUrl = getVtoImageUrl(productSkuid);
-  const savedAdj = captureSession.frameAdjustments ?? DEFAULT_FRAME_ADJUSTMENTS;
+  const isDesktopFallback = containerSize.width >= 400 || containerSize.width === 0;
+  const defaultAdj = isDesktopFallback ? DEFAULT_FRAME_ADJUSTMENTS_DESKTOP : DEFAULT_FRAME_ADJUSTMENTS_MOBILE;
+  const savedAdj = captureSession.frameAdjustments ?? defaultAdj;
   const adj = { ...savedAdj };
 
   useEffect(() => {

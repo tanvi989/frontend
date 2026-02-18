@@ -722,8 +722,8 @@ const GetMyFitPopup: React.FC<GetMyFitPopupProps> = ({ open, onClose, initialSte
                       </TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value="measurements" className="mt-0 focus-visible:outline-none bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><MeasurementsTab onViewMeasurements={() => setStep4Tab('frames')} hideSizeControl /></TabsContent>
-                    <TabsContent value="frames" className="mt-0 focus-visible:outline-none bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><FramesTab measurementsOnly onBackToMeasurements={() => setStep4Tab('measurements')} /></TabsContent>
+                    <TabsContent value="measurements" className="mt-0 focus-visible:outline-none bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><MeasurementsTab onViewMeasurements={() => setStep4Tab('frames')} /></TabsContent>
+                    <TabsContent value="frames" className="mt-0 focus-visible:outline-none bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><FramesTab measurementsOnly onBackToMeasurements={() => setStep4Tab('measurements')} useDesktopDefaults /></TabsContent>
                   </Tabs>
                 </div>
               )}

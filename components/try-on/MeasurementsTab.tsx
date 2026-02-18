@@ -4,7 +4,7 @@ import { useCaptureData } from '@/contexts/CaptureContext';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { saveCaptureSession } from '@/utils/captureSession';
 import { FrameAdjustmentControls } from './FrameAdjustmentControls';
-import { DEFAULT_ADJUSTMENTS, type AdjustmentValues } from '@/utils/frameOverlayUtils';
+import { DEFAULT_ADJUSTMENTS, DEFAULT_ADJUSTMENTS_DESKTOP, type AdjustmentValues } from '@/utils/frameOverlayUtils';
 import { getProductBySku } from '@/api/retailerApis';
 import VtoProductOverlay from '@/components/VtoProductOverlay';
 import { toast } from 'sonner';
@@ -89,7 +89,7 @@ export function MeasurementsTab({ onViewMeasurements, previewWidth = 384, previe
       ? { ...FIXED_100_ADJUSTMENTS }
       : capturedData?.frameAdjustments
         ? { ...capturedData.frameAdjustments }
-        : { ...DEFAULT_ADJUSTMENTS };
+        : (compactLayout ? { ...DEFAULT_ADJUSTMENTS } : { ...DEFAULT_ADJUSTMENTS_DESKTOP }); // Desktop: 85% default
     if (hideSizeControl) base.scaleAdjust = 1;
     return base;
   });
@@ -107,7 +107,7 @@ export function MeasurementsTab({ onViewMeasurements, previewWidth = 384, previe
         toast.error('Could not detect eyes. Try a clearer photo or click Align again.');
         return;
       }
-      const scaleForAlign = hideSizeControl ? 1 : (compactLayout ? MOBILE_ALIGN_SCALE : 1);
+      const scaleForAlign = hideSizeControl ? 1 : (compactLayout ? MOBILE_ALIGN_SCALE : 0.85); // Desktop: 85% after align
       const alignValues: AdjustmentValues = {
         ...AI_ALIGN_ADJUSTMENTS,
         scaleAdjust: scaleForAlign,
@@ -180,7 +180,8 @@ export function MeasurementsTab({ onViewMeasurements, previewWidth = 384, previe
   );
 
   const handleResetAdjustments = useCallback(() => {
-    const reset = { ...DEFAULT_ADJUSTMENTS, ...(hideSizeControl ? { scaleAdjust: 1 } : {}) };
+    const baseDefault = compactLayout ? DEFAULT_ADJUSTMENTS : DEFAULT_ADJUSTMENTS_DESKTOP;
+    const reset = { ...baseDefault, ...(hideSizeControl ? { scaleAdjust: 1 } : {}) };
     setAdjustments(reset);
     if (capturedData) {
       setCapturedData({
@@ -193,7 +194,7 @@ export function MeasurementsTab({ onViewMeasurements, previewWidth = 384, previe
         },
       });
     }
-  }, [capturedData, setCapturedData, hideSizeControl]);
+  }, [capturedData, setCapturedData, hideSizeControl, compactLayout]);
 
   const handleViewMeasurementsClick = useCallback(() => {
     if (!onViewMeasurements) return;

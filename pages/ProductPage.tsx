@@ -128,7 +128,7 @@ const ProductPage: React.FC = () => {
   const { capturedData, setCapturedData } = useCaptureData();
   const [product, setProduct] = useState<Product | null>(null);
 
-  // Restore MFit capture from session so VTO box shows same image as on /glasses
+  // Restore MFit capture from session so VTO box shows same image and alignment as on /glasses
   useEffect(() => {
     const session = getCaptureSession();
     if (!session) return;
@@ -137,8 +137,16 @@ const ProductPage: React.FC = () => {
       setCapturedData(session);
       return;
     }
+    // Merge session data: croppedPreviewDataUrl and frameAdjustments so /glasses alignment shows on product page and share
+    const updates: Partial<typeof capturedData> = {};
     if (session.croppedPreviewDataUrl && !capturedData.croppedPreviewDataUrl) {
-      setCapturedData({ ...capturedData, croppedPreviewDataUrl: session.croppedPreviewDataUrl });
+      updates.croppedPreviewDataUrl = session.croppedPreviewDataUrl;
+    }
+    if (session.frameAdjustments) {
+      updates.frameAdjustments = session.frameAdjustments;
+    }
+    if (Object.keys(updates).length > 0) {
+      setCapturedData({ ...capturedData, ...updates });
     }
   }, [capturedData, setCapturedData]);
   const [allProducts, setAllProducts] = useState<any[]>([]);
@@ -1523,7 +1531,17 @@ const ProductPage: React.FC = () => {
                   style={isMobile ? { width: 280, height: 231 } : { width: 384, height: 332 }}
                 >
                   <VtoProductOverlay
-                    captureSession={capturedData}
+                    captureSession={
+                      (() => {
+                        const session = getCaptureSession();
+                        if (!session) return capturedData;
+                        return {
+                          ...(capturedData || session),
+                          ...session,
+                          frameAdjustments: session.frameAdjustments ?? capturedData?.frameAdjustments ?? session.frameAdjustments,
+                        };
+                      })()
+                    }
                     productSkuid={String(product.skuid || product.id || id || "")}
                     productDimensions={product.dimensions}
                     productName={product.name}

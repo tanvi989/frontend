@@ -9,6 +9,7 @@ import type { GlassesFrame, FrameOffsets, FaceLandmarks } from '@/types/face-val
 import { cn } from '@/lib/utils';
 import { getFrames, getVtoImageUrl, getProductBySku } from '@/api/retailerApis';
 import { parseDimensionsString } from '@/utils/frameDimensions';
+import { DEFAULT_ADJUSTMENTS_DESKTOP } from '@/utils/frameOverlayUtils';
 
 // Static frame images (local) – original 3
 const frame1Img = '/frames/frame1.png';
@@ -239,17 +240,28 @@ export interface FramesTabProps {
   measurementsOnly?: boolean;
   /** When set (e.g. in MFit popup), show Back button to switch to Measurements tab. */
   onBackToMeasurements?: () => void;
+  /** When true (desktop), use 85% default size; when false (mobile), keep existing defaults. */
+  useDesktopDefaults?: boolean;
 }
 
-export function FramesTab({ measurementsOnly = false, onBackToMeasurements }: FramesTabProps) {
+export function FramesTab({ measurementsOnly = false, onBackToMeasurements, useDesktopDefaults = false }: FramesTabProps) {
   const navigate = useNavigate();
   const { capturedData, setCapturedData } = useCaptureData();
+  const baseDefault = useDesktopDefaults ? DEFAULT_ADJUSTMENTS_DESKTOP : DEFAULT_ADJUSTMENTS;
   const [selectedFrame, setSelectedFrame] = useState<GlassesFrame | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [imageNaturalSize, setImageNaturalSize] = useState({ width: 0, height: 0 });
   const [croppedObjectUrl, setCroppedObjectUrl] = useState<string | null>(null);
   const croppedObjectUrlRef = useRef<string | null>(null);
-  const [adjustments, setAdjustments] = useState<AdjustmentValues>(DEFAULT_ADJUSTMENTS);
+  const [adjustments, setAdjustments] = useState<AdjustmentValues>(() =>
+    capturedData?.frameAdjustments ?? baseDefault
+  );
+  // Sync from MeasurementsTab when user switches tabs (alignment made there should show in FramesTab)
+  useEffect(() => {
+    if (measurementsOnly && capturedData?.frameAdjustments) {
+      setAdjustments(capturedData.frameAdjustments);
+    }
+  }, [measurementsOnly, capturedData?.frameAdjustments]);
   const [leftEyePos, setLeftEyePos] = useState({ x: 0, y: 0 });
   const [rightEyePos, setRightEyePos] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState<'left' | 'right' | 'frame' | null>(null);
@@ -503,7 +515,7 @@ export function FramesTab({ measurementsOnly = false, onBackToMeasurements }: Fr
     if (!capturedData) {
       setSelectedFrame(frame);
       if (frame?.offsets) setAdjustments(frame.offsets);
-      else setAdjustments(DEFAULT_ADJUSTMENTS);
+      else setAdjustments(baseDefault);
       return;
     }
     // Get My Fit only uses images without glasses; no need to remove glasses again on result page
@@ -511,12 +523,12 @@ export function FramesTab({ measurementsOnly = false, onBackToMeasurements }: Fr
     if (frame?.offsets) {
       setAdjustments(frame.offsets);
     } else {
-      setAdjustments(DEFAULT_ADJUSTMENTS);
+      setAdjustments(baseDefault);
     }
   };
 
   const handleResetAdjustments = () => {
-    setAdjustments(selectedFrame?.offsets || DEFAULT_ADJUSTMENTS);
+    setAdjustments(selectedFrame?.offsets || baseDefault);
   };
 
   // Drag logic - Mouse and Touch (eye markers)
