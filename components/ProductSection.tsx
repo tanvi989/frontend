@@ -182,7 +182,7 @@ export const ProductSection: React.FC = () => {
               {/* Button Second */}
               <div className="mb-10 px-4 flex justify-center">
               <button
-                onClick={() => navigate("/glasses/men")}
+                onClick={() => navigate("/glasses")}
                 aria-label="Explore our range of glasses"
                 className="w-[200px] py-6 bg-[#232320] text-white rounded-full uppercase transition-all duration-300 hover:bg-[#1a1a1a]"
                   style={{
