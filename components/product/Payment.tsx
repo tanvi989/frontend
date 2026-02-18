@@ -1843,6 +1843,96 @@ const Payment: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
               {/* Left Column: Forms */}
               <div className="lg:col-span-2">
+                
+                {/* --- MOBILE ONLY: Delivery Address, Shipping Method, Summary --- */}
+                <div className="md:hidden mb-8 space-y-6">
+                    
+                    {/* Delivery Address Card - Show when addressData exists (typically on Payment step or after filling form) */}
+                    {addressData && (
+                        <div>
+                            <h3 className="text-sm font-bold text-[#1F1F1F] mb-3 font-sans">
+                                Delivery Address
+                            </h3>
+                            <div className="bg-white border border-gray-300 p-4 rounded-sm shadow-sm">
+                                <p className="font-bold text-[#1F1F1F] text-sm">
+                                    {addressData.fullName}
+                                </p>
+                                <p className="text-sm text-[#525252] mt-1">
+                                    Tel. - {addressData.mobile}
+                                </p>
+                                <p className="text-sm text-[#525252] mt-2">
+                                    {addressData.addressLine}
+                                </p>
+                                <p className="text-sm text-[#525252]">
+                                    {[addressData.city, addressData.zip].filter(Boolean).join(" ")}
+                                    {addressData.state && `, ${addressData.state}`}
+                                    {addressData.country && `, ${addressData.country}`}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Shipping Method Card - Replicated from desktop logic */}
+                    {(() => {
+                        const methodId = (locationState as any)?.shippingMethod
+                            || sessionStorage.getItem("cartShippingMethod")
+                            || cartData?.shipping_method?.id
+                            || (shippingCost >= 29 ? "express" : "standard");
+                        const isExpress = methodId === "express";
+                        return (
+                            <div>
+                                <h3 className="text-sm font-bold text-[#1F1F1F] mb-3 font-sans">
+                                    Shipping method
+                                </h3>
+                                <div className="bg-white border border-gray-300 p-4 rounded-sm shadow-sm">
+                                    <p className="font-bold text-[#1F1F1F] text-sm">
+                                        {isExpress ? "Express Shipping" : "Standard Shipping"}
+                                    </p>
+                                    <p className="text-sm text-[#525252] mt-1">
+                                        {isExpress ? "4-6 working days" : "8-12 working days"}
+                                    </p>
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {/* Price Summary Card - Replicated for mobile */}
+                    <div>
+                        <h3 className="text-sm font-bold text-[#1F1F1F] mb-3 font-sans">
+                            Price Summary
+                        </h3>
+                        <div className="bg-white p-4 border border-gray-300 rounded-sm space-y-3 shadow-sm">
+                            <div className="flex justify-between text-sm font-bold text-[#1F1F1F]">
+                                <span>Price</span>
+                                <span>£{listPrice.toFixed(0)}</span>
+                            </div>
+
+                            {offerAmount > 0 && (
+                                <div className="flex justify-between text-sm font-bold text-[#00C853]">
+                                    <span>Discount {offer?.code ? `(${offer.code})` : ""}</span>
+                                    <span>- £{offerAmount.toFixed(0)}</span>
+                                </div>
+                            )}
+
+                            <div className="flex justify-between text-sm font-bold text-[#00C853]">
+                                <span>Taxes</span>
+                                <span>£{taxAmount?.toFixed(0) || "0"}</span>
+                            </div>
+
+                            <div className="flex justify-between text-sm font-bold text-[#1F1F1F]">
+                                <span>Shipping</span>
+                                <span>£{shippingCost?.toFixed(0) || "0"}</span>
+                            </div>
+
+                            <div className="border-t border-gray-100 pt-3 flex justify-between text-sm font-bold text-[#1F1F1F]">
+                                <span>Total Payable</span>
+                                <span>£{totalPayable.toFixed(0)}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {/* --- END MOBILE ONLY SECTION --- */}
+
                 {step === "address" ? (
                   <AddressForm
                     ref={addressFormRef}

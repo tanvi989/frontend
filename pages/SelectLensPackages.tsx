@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import CheckoutStepper from "../components/CheckoutStepper";
@@ -15,6 +15,9 @@ const SelectLensPackages: React.FC = () => {
   const navigate = useNavigate();
   const [selectedPackage, setSelectedPackage] = useState<string | undefined>();
   const [showLensGuide, setShowLensGuide] = useState(false);
+  
+  // Ref for the continue button container
+  const continueButtonRef = useRef<HTMLDivElement>(null);
 
   const { data: apiProduct } = useQuery({
     queryKey: ["product", id],
@@ -96,6 +99,19 @@ const SelectLensPackages: React.FC = () => {
       });
     }
   }, [state?.lensType, lensCategory, id]);
+
+  // Auto-scroll to continue button when package is selected
+  useEffect(() => {
+    if (selectedPackage && continueButtonRef.current) {
+      // Small delay to ensure the button is rendered
+      setTimeout(() => {
+        continueButtonRef.current?.scrollIntoView({ 
+          behavior: "smooth", 
+          block: "center" 
+        });
+      }, 100);
+    }
+  }, [selectedPackage]);
 
   // Single Vision packages (pricing: clear 0/19/39/69, blueprotect 19/39/59/79, photochromic 29/49/79/99, sunglasses 1.56 only 29)
   const SINGLE_VISION_BLUE_PACKAGES = [
@@ -822,7 +838,7 @@ const SelectLensPackages: React.FC = () => {
 
         {/* Continue button - only when package selected */}
         {selectedPackage && (
-          <div className="flex justify-center mt-8 mb-12">
+          <div ref={continueButtonRef} className="flex justify-center mt-8 mb-12">
             <button
               onClick={handleContinue}
               className="bg-[#025048] text-white px-12 py-4 rounded-full font-bold text-sm uppercase tracking-widest hover:bg-[#013a34] transition-colors shadow-md"

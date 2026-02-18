@@ -178,6 +178,9 @@ const SelectLensType: React.FC = () => {
   const queryClient = useQueryClient();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [processing, setProcessing] = useState<string | null>(null);
+  
+  // Ref for the continue button container
+  const continueButtonRef = React.useRef<HTMLDivElement>(null);
 
   // Debug logging
   React.useEffect(() => {
@@ -187,6 +190,19 @@ const SelectLensType: React.FC = () => {
     console.log("Product:", state?.product);
     console.log("Selected Category:", selectedCategory);
   }, [id, state, selectedCategory]);
+
+  // Auto-scroll to continue button when category is selected
+  React.useEffect(() => {
+    if (selectedCategory && continueButtonRef.current) {
+      // Small delay to ensure the button is rendered
+      setTimeout(() => {
+        continueButtonRef.current?.scrollIntoView({ 
+          behavior: "smooth", 
+          block: "center" 
+        });
+      }, 100);
+    }
+  }, [selectedCategory]);
 
   const product = state?.product || {
     id: id,
@@ -624,7 +640,7 @@ const SelectLensType: React.FC = () => {
 
             {/* Continue button - only when category selected */}
             {selectedCategory && (
-              <div className="flex justify-center mt-8">
+              <div ref={continueButtonRef} className="flex justify-center mt-8">
                 <button
                   onClick={handleContinue}
                   className="bg-[#025048] text-white px-12 py-4 rounded-full font-bold text-sm uppercase tracking-widest hover:bg-[#013a34] transition-colors shadow-md"
