@@ -453,7 +453,7 @@ const GetMyFitPopup: React.FC<GetMyFitPopupProps> = ({ open, onClose, initialSte
   `;
 
   if (isMobile) {
-    return <GetMyFitPopupMobile open={open} onClose={onClose} />;
+    return <GetMyFitPopupMobile open={open} onClose={onClose} onPDCaptured={onPDCaptured} />;
   }
 
   if (!open) return null;

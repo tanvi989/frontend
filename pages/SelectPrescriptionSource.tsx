@@ -29,6 +29,15 @@ const SelectPrescriptionSource: React.FC = () => {
   const [capturedPD, setCapturedPD] = useState<{ pdSingle?: number; pdRight?: number; pdLeft?: number } | null>(null);
   const [pdFilledByMfit, setPdFilledByMfit] = useState(false);
 
+  // Ref for scrolling to PD form on mobile
+  const pdFormRef = React.useRef<HTMLDivElement>(null);
+
+  const scrollToPdForm = () => {
+    setTimeout(() => {
+      pdFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
+  };
+
   const pdVoiceText =
     "PD, made easy. Let's keep this simple. " +
     "Some prescriptions show Distance PD and Near PD. For multifocal or progressive lenses, always use Distance PD. " +
@@ -196,6 +205,7 @@ const SelectPrescriptionSource: React.FC = () => {
     if (hasExistingPD) {
       // PD already exists (from session/flow) – show the form with values
       setPdPreference("know");
+      scrollToPdForm();
     } else {
       // No PD – open MFit popup
       if (id) setProductFlow(id, { pdPreference: "generate" });
@@ -203,7 +213,7 @@ const SelectPrescriptionSource: React.FC = () => {
     }
   };
 
-  // Auto-fill PD when MFit captures it (extra feature - doesn't show VTO result page)
+  // Auto-fill PD when MFit captures it — then auto-navigate to add-prescription
   const handlePDCaptured = (pdData: { pdSingle?: number; pdRight?: number; pdLeft?: number }) => {
     setCapturedPD(pdData);
     setPdFilledByMfit(true);
@@ -225,18 +235,37 @@ const SelectPrescriptionSource: React.FC = () => {
       roundedRight = roundPdToDropdownOption(total / 2, pdOptions);
       roundedLeft = roundPdToDropdownOption(total / 2, pdOptions);
     }
+
     setPdType("dual");
     setPdRight(roundedRight);
     setPdLeft(roundedLeft);
     setPdSingle("");
 
+    // Build payload using local vars immediately (React state updates are async)
+    const pdPayload = {
+      pdPreference: "know" as const,
+      pdType: "dual" as const,
+      pdSingle: undefined as string | undefined,
+      pdRight: roundedRight,
+      pdLeft: roundedLeft,
+    };
+
     if (id && (roundedRight || roundedLeft)) {
-      setProductFlow(id, {
-        pdPreference: "know",
-        pdType: "dual",
-        pdRight: roundedRight,
-        pdLeft: roundedLeft,
+      setProductFlow(id, pdPayload);
+    }
+
+    // Auto-navigate directly to add-prescription — user shouldn't need to press Continue after MFit
+    if (roundedRight && roundedLeft && id) {
+      navigate(`/product/${id}/add-prescription`, {
+        state: {
+          ...state,
+          prescriptionTier: state?.lensOption || state?.prescriptionTier,
+          ...pdPayload,
+        },
       });
+    } else {
+      // Fallback: rounding failed, show form so user can correct manually
+      scrollToPdForm();
     }
   };
 
@@ -268,7 +297,7 @@ const SelectPrescriptionSource: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F3F0E7] font-sans py-8 px-4 md:px-8 relative">
+    <div className="min-h-screen bg-[#F3F0E7] font-sans py-8 px-4 md:px-8 pb-16 md:pb-8 relative">
       {/* TOP HEADER STRIP (Stepper) */}
       <div className="hidden lg:block">
         <CheckoutStepper
@@ -322,21 +351,23 @@ const SelectPrescriptionSource: React.FC = () => {
             {/* I know my PD value CARD */}
             <button
               type="button"
-              onClick={() => setPdPreference("know")}
+              onClick={() => {
+                setPdPreference("know");
+                scrollToPdForm();
+              }}
               className="
-                w-full                 /* widened card */
+                w-full
                 bg-[#F3F0E7]
-                
                 border-[1.8px]
-                border-[#777]          /* darker border */
-                rounded-[24px]         /* more rounded */
-                p-4                   /* bigger padding */
+                border-[#777]
+                rounded-[24px]
+                p-4
                 hover:border-[#555]
                 hover:shadow-md
                 transition-all
                 duration-300
                 text-center
-                min-h-[150px]          /* slightly taller */
+                min-h-[150px]
                 flex-row md:flex-col
                 items-center
                 justify-center
@@ -355,9 +386,8 @@ const SelectPrescriptionSource: React.FC = () => {
             <button
               onClick={handleGenerateNewPd}
               className="
-                w-full                 /* widened card */
+                w-full
                 bg-[#F3F0E7]
-                
                 border-[1.8px]
                 border-[#777]
                 rounded-3xl
@@ -385,7 +415,7 @@ const SelectPrescriptionSource: React.FC = () => {
 
           {/* 🔹 BOTTOM CARD: PD form — same size/style as top two cards */}
           {pdPreference === "know" && (
-            <div className="flex justify-center">
+            <div className="flex justify-center" ref={pdFormRef}>
               <div className="w-full md:w-1/2 bg-[#F3F0E7] border-[1.8px] border-[#777] rounded-[24px] p-4 min-h-[150px] flex flex-col justify-center">
                 <p className="text-xs font-bold text-[#1F1F1F] uppercase tracking-wide mb-2">
                   {pdFilledByMfit ? "PD is autofilled by MFit" : "Choose one:"}
@@ -550,7 +580,7 @@ const SelectPrescriptionSource: React.FC = () => {
         </div>
 
         {/* FOOTER NOTE */}
-        <div className="block md:mt-12 md:static fixed bottom-6 left-0 right-0 px-4 bg-[#F3F0E7] md:bg-transparent pt-2 md:pt-0 text-center">
+        <div className="mt-8 md:mt-12 pb-8 md:pb-0 text-center">
           <p className="text-[#1F1F1F] text-sm font-medium">
             Use your benefits—we accept HSA/FSA Payments.
           </p>

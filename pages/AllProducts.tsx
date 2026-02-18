@@ -1209,7 +1209,7 @@ const handleTopMfitToggle = () => {
           })()}
 
           {/* Product Grid - Multifolks Style - Fixed Spacing. When mobileLayout + VTO, use 1 col so 280x231 VTO container fits (matches Get My Fit popup). */}
-          <div className={`grid pt-16 sm:pt-4 ${fitEnabled && captureSession && mobileLayout ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-3'}`}>
+          <div className={`grid pt-4 sm:pt-4 ${fitEnabled && captureSession && mobileLayout ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-3'}`}>
             {paginatedProducts
               .map((product: any, index: number) => (
                 <div

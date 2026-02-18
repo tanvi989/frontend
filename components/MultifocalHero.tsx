@@ -3,14 +3,14 @@ import React from "react";
 const MultifocalAboutPage: React.FC = () => {
   return (
     <>
-      {/* Mobile Layout - Increased section size */}
+      {/* Mobile Layout */}
       <div className="block lg:hidden relative h-auto bg-red-500 text-white px-8 py-14 overflow-hidden">
         {/* Background overlay */}
         <div className="absolute inset-0 bg-[#E94D37] opacity-90"></div>
 
         {/* Content */}
         <div className="relative z-10 flex flex-col">
-          {/* Logo/Image - larger */}
+          {/* Logo/Image */}
           <img
             src="/mlogo.png"
             alt="Multifocal Logo"
@@ -20,11 +20,11 @@ const MultifocalAboutPage: React.FC = () => {
             className="w-14 h-11 mb-8 rounded-full"
           />
 
-          {/* Main text - larger font for mobile */}
+          {/* Main text - reduced font for mobile */}
           <h3
             className="text-white mb-10"
             style={{
-              fontSize: '22px',
+              fontSize: '15px',      // ← was 22px
               fontWeight: 350,
               wordWrap: 'break-word',
               lineHeight: '1.7',
@@ -35,7 +35,7 @@ const MultifocalAboutPage: React.FC = () => {
             multifocals are the one and only thing we focus on.
           </h3>
 
-          {/* Right side sections - larger font and spacing */}
+          {/* Right side sections */}
           <hr className="border-red-300/50 w-full" />
           <div className="space-y-8 w-full mt-6">
             {[
@@ -55,11 +55,10 @@ const MultifocalAboutPage: React.FC = () => {
             ].map((section, idx) => (
               <div key={idx} className="space-y-4 w-full">
                 <div className="flex flex-col justify-between items-start gap-1 w-full">
-
                   <h2
                     className="text-white w-full"
                     style={{
-                      fontSize: '30px',
+                      fontSize: '20px',      // ← was 30px
                       fontFamily: 'Lynstone-regular',
                       fontWeight: 350,
                       lineHeight: '1.4',
@@ -71,7 +70,7 @@ const MultifocalAboutPage: React.FC = () => {
                   <p
                     className="text-white opacity-90 text-left w-full"
                     style={{
-                      fontSize: '20px',
+                      fontSize: '13px',      // ← was 20px
                       lineHeight: '1.6',
                       marginTop: '8px'
                     }}
@@ -86,14 +85,14 @@ const MultifocalAboutPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Desktop Layout - Increased section size */}
+      {/* Desktop Layout - unchanged */}
       <div className="hidden lg:relative lg:flex lg:min-h-[620px] lg:py-20 bg-red-500 text-white px-20 py-12 flex-row items-start justify-between gap-16 overflow-hidden">
         {/* Background overlay */}
         <div className="absolute inset-0 bg-[#E94D37] opacity-90"></div>
 
         {/* Left/main content */}
         <div className="relative z-10 flex-1 flex flex-col max-w-xl">
-          {/* Logo/Image - larger */}
+          {/* Logo/Image */}
           <img
             src="/mlogo.png"
             alt="Multifocal Logo"
@@ -103,7 +102,7 @@ const MultifocalAboutPage: React.FC = () => {
             className="mb-8 rounded-full w-14 h-11"
           />
 
-          {/* Main text - larger */}
+          {/* Main text */}
           <h3
             className="text-white mb-10 mt-4 md:mt-10"
             style={{
@@ -122,7 +121,7 @@ const MultifocalAboutPage: React.FC = () => {
           </h3>
         </div>
 
-        {/* Right side sections - larger text and spacing */}
+        {/* Right side sections */}
         <div className="relative z-10 flex-1 space-y-8 mt-8 lg:mt-14 max-w-xl">
           <hr className="border-red-300/50" />
 
