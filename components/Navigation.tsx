@@ -709,7 +709,7 @@ export const Navigation: React.FC = () => {
                             </p>
                             {/* Button aligned to left with margin on top */}
                             <button className="mt-6 bg-black text-white uppercase text-xs font-bold tracking-wider px-4 sm:px-6 py-3 rounded-full transition-colors duration-200">
-                              Get Started
+                              Try-MFit
                             </button>
                           </div>
 

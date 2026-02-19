@@ -732,7 +732,7 @@ const handleTopMfitToggle = () => {
   };
 
   /** Frame width range for MFit Top Matches: face−6 to face+15 mm (e.g. face 120 → 114–135 mm) */
-  const FRAME_WIDTH_MIN_OFFSET_MM = -2; // frame can be 6mm smaller than face
+  const FRAME_WIDTH_MIN_OFFSET_MM = -6; // frame can be 6mm smaller than face
   const FRAME_WIDTH_MAX_OFFSET_MM = 15; // frame can be 15mm bigger than face
 
   // Products whose frame width is in range [faceWidth−6, faceWidth+15] mm, sorted by closest match.
@@ -750,8 +750,35 @@ const handleTopMfitToggle = () => {
         withWidth.push({ product: p, width: frameWidth });
       }
     }
- withWidth.sort((a, b) => Math.abs(a.width - faceWidthMm) - Math.abs(b.width - faceWidthMm));
-    return withWidth.map(({ product }) => product);
+withWidth.sort((a, b) => Math.abs(a.width - faceWidthMm) - Math.abs(b.width - faceWidthMm));
+
+// Array 1: Face width
+const faceWidthArray = [{ face_width_mm: faceWidthMm, range_min_mm: minFrame, range_max_mm: maxFrame }];
+
+// Array 2: ALL frames with their widths (entire product list, not just matched)
+const allFrameWidthsArray = allProductsFilteredByGender
+  .map((p: any) => {
+    const w = getFrameWidth(p.skuid) ?? (p.dimensions ? parseDimensionsString(p.dimensions).width : undefined);
+    return {
+      skuid: p.skuid,
+      name: p.naming_system || p.name,
+      frame_width_mm: w ?? 'N/A',
+      diff_from_face: w != null ? `${(w - faceWidthMm) >= 0 ? '+' : ''}${(w - faceWidthMm).toFixed(1)}mm` : 'N/A',
+      in_range: w != null && w >= minFrame && w <= maxFrame,
+    };
+  })
+  .sort((a: any, b: any) => {
+    if (a.frame_width_mm === 'N/A') return 1;
+    if (b.frame_width_mm === 'N/A') return -1;
+    return Math.abs(a.frame_width_mm - faceWidthMm) - Math.abs(b.frame_width_mm - faceWidthMm);
+  });
+
+console.log('%c[MFit] ── FACE WIDTH ──', 'color: #D96C47; font-weight: bold; font-size: 14px;');
+console.table(faceWidthArray);
+console.log(`%c[MFit] ── ALL FRAMES (${allFrameWidthsArray.length} total | ${withWidth.length} in range | showing top 200) ──`, 'color: #4CAF50; font-weight: bold; font-size: 14px;');
+console.table(allFrameWidthsArray);
+
+return withWidth.slice(0, 200).map(({ product }) => product);
   }, [captureSession?.measurements?.face_width, allProductsFilteredByGender]);
 
   const filteredAndSortedProducts = useMemo(() => {
