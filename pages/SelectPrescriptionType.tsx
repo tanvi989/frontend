@@ -147,13 +147,14 @@ const SelectPrescriptionType: React.FC = () => {
                     </div>
                     <div className="flex-1">
                       <h3 className="text-base md:text-lg font-bold text-[#1F1F1F] mb-1">
-                        Progressive / Varifocal lenses
+                        Progressive / Varifocal Lenses
                       </h3>
+                     
                       {/* Description bullet points — small font */}
                       <ul className="space-y-0.5 mt-1">
                         <li className="text-[11px] text-gray-600 leading-snug flex items-start gap-1">
                           <span className="mt-0.5 shrink-0">•</span>
-                          <span>One pair for reading, screen, and distance — effortless.</span>
+                          <span>One pair for reading, screen, and distance effortless.</span>
                         </li>
                         <li className="text-[11px] text-gray-600 leading-snug flex items-start gap-1">
                           <span className="mt-0.5 shrink-0">•</span>

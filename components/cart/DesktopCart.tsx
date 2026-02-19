@@ -1136,7 +1136,7 @@ const DesktopCart: React.FC = () => {
                             <div className="flex-1">
                                 {/* Satisfaction Banner */}
                                 <div className="bg-[#f3f3f3] text-[#2E7D32] px-4 py-3 rounded-md text-center font-bold text-sm mb-6 border border-[#C8E6C9]">
-                                    aSatisfaction Guaranteed - Hassle Free 30 Days Refunds.
+                                   30-Day Zero-Questions Return. Guaranteed. 
                                 </div>
 
                                 <div className="space-y-6">

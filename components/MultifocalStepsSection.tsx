@@ -43,7 +43,7 @@ export const MultifocalStepsSection: React.FC = () => {
                 You are at the right place.
               </p>
               <button
-                onClick={() => navigate("/glasses/men")}
+                onClick={() => navigate("/glasses")}
                 className="bg-[#1F4B43] text-white text-[11px] font-bold px-6 py-3 rounded-full uppercase tracking-widest hover:bg-[#15332E] transition-colors"
               >
                 Get Started
@@ -69,7 +69,7 @@ export const MultifocalStepsSection: React.FC = () => {
                 We've got you covered.
               </p>
               <button
-                onClick={() => navigate("/glasses/women")}
+                onClick={() => navigate("/glasses")}
                 className="bg-[#1F4B43] text-white text-[11px] font-bold px-6 py-3 rounded-full uppercase tracking-widest hover:bg-[#15332E] transition-colors"
               >
                 Shop Now
@@ -93,7 +93,7 @@ export const MultifocalStepsSection: React.FC = () => {
               </h3>
               <p className="text-gray-500 text-[14px] mb-6">&nbsp;</p>
               <button
-                onClick={() => navigate("/glasses/men")}
+                onClick={() => navigate("/glasses")}
                 className="bg-[#1F4B43] text-white text-[11px] font-bold px-6 py-3 rounded-full uppercase tracking-widest hover:bg-[#15332E] transition-colors"
               >
                 Browse Collection

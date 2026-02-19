@@ -26,7 +26,7 @@ import GlassesMobile from './pages/GlassesMobile';
 import WomenCollection from './pages/WomenCollection';
 import Cart from './pages/Cart';
 import CheckoutPreview from './pages/CheckoutPreview';
-
+import Newtomultifocals from './pages/Newtomultifocals'
 import ContactUs from './pages/ContactUs';
 import Help from './pages/Help';
 import NewMultifocal from './pages/NewMultifocal';
@@ -133,7 +133,7 @@ const App: React.FC = () => {
     '/claim-report',
     '/lens',
     '/knowledge-base',
-
+'new-to-multifocals',
 
     '/select-prescription-type',
     '/select-prescription-source',
@@ -192,7 +192,7 @@ const App: React.FC = () => {
             <Route path="/glasses-m" element={<GlassesMobile />} />
             <Route path="/glasses/men" element={<MenCollection />} />
             <Route path="/glasses/women" element={<WomenCollection />} />
-
+ <Route path="/new-to-multifocals" element={<Newtomultifocals />}  />
             {/* Footer Info Pages */}
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/insurance" element={<Insurance />} />

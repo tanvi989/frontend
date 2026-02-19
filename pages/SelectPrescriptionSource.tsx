@@ -570,6 +570,10 @@ const SelectPrescriptionSource: React.FC = () => {
             </li>
             <li className="flex gap-2">
               <span className="text-[#6B8E23] font-bold shrink-0">•</span>
+              <span> Single PD ranges from 45–72 mm. Dual PD measures 22–42 mm per eye.</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-[#6B8E23] font-bold shrink-0">•</span>
               <span>If your prescription has only one PD value, enter single PD we will do the rest.</span>
             </li>
             <li className="flex gap-2">

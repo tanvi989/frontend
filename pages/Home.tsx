@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { HeroSection } from "../components/HeroSection";
 import { FeaturesSection } from "../components/FeaturesSection";
@@ -7,20 +7,37 @@ import { LensSection } from "../components/LensSection";
 import { VisionSection } from "../components/VisionSection";
 import MultifocalHero from "@/components/MultifocalHero";
 import Multifocus from "@/components/MultiFocus";
-
 import FeaturesSectionSecond from "@/components/FeaturesSectionSecond";
 import MultiFrames from "@/components/product/MultiFrames";
 import ChooseRightLens from "@/components/product/ChooseRightLens";
 import PersonalLens from "@/components/product/PersonalLens";
 import GoodLiving from "@/components/product/GoodLiving";
 import NamingSystemSection from "@/components/NamingSystemSection";
+import GetMyFitPopup from "@/components/getMyFitPopup/GetMyFitPopup";
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
+  const [isGetMyFitPopupOpen, setIsGetMyFitPopupOpen] = useState(false);
 
   return (
     <>
       <HeroSection />
+
+      {/* MFit Banner */}
+      <div
+        className="w-full cursor-pointer"
+        onClick={() => setIsGetMyFitPopupOpen(true)}
+      >
+        <img
+          src="/mfit_desktop_banner.jpg"
+          alt="Try MFit"
+          width="1920"
+          height="auto"
+          loading="lazy"
+          className="w-full h-auto block"
+        />
+      </div>
+
       <MultifocalHero />
       <FeaturesSectionSecond />
       {/* <FeaturesSection /> */}
@@ -31,7 +48,7 @@ export const Home: React.FC = () => {
         <PersonalLens />
       </div>
       {/* Image block with mobile-safe containment */}
-      <div className="w-full flex justify-center hidden lg:block ">
+      <div className="w-full flex justify-center hidden lg:block">
         <img
           src="four2.png"
           alt="Product Showcase"
@@ -45,9 +62,8 @@ export const Home: React.FC = () => {
       <ChooseRightLens />
       {/* <MultiFrames /> */}
 
-      {/* Mobile view - Show two images with button overlay on first image */}
+      {/* Mobile view */}
       <div className="block md:hidden">
-        {/* First image with button overlay */}
         <div style={{ position: "relative", width: "100%" }}>
           <img
             src="/men-glass-img.png"
@@ -78,8 +94,7 @@ export const Home: React.FC = () => {
             SHOP OUR RANGE
           </button>
         </div>
-        
-        {/* Second image - full width */}
+
         <div style={{ width: "100%" }}>
           <img
             src="/Frame-img.png"
@@ -92,7 +107,7 @@ export const Home: React.FC = () => {
         </div>
       </div>
 
-      {/* Desktop view - Show two images with button overlay on men's photo */}
+      {/* Desktop view */}
       <div
         className="hidden md:block"
         style={{ position: "relative", width: "100%" }}
@@ -105,11 +120,11 @@ export const Home: React.FC = () => {
               width="960"
               height="900"
               loading="lazy"
-              style={{ 
-                width: "100%", 
-                height: "100%", 
-                display: "block", 
-                objectFit: "cover" 
+              style={{
+                width: "100%",
+                height: "100%",
+                display: "block",
+                objectFit: "cover",
               }}
             />
             <button
@@ -140,22 +155,28 @@ export const Home: React.FC = () => {
               width="960"
               height="900"
               loading="lazy"
-              style={{ 
-                width: "100%", 
-                height: "100%", 
-                display: "block", 
-                objectFit: "cover" 
+              style={{
+                width: "100%",
+                height: "100%",
+                display: "block",
+                objectFit: "cover",
               }}
             />
           </div>
         </div>
       </div>
+
       <Multifocus />
-      {/* {/*    */}
       {/* <div className="block lg:hidden">
         <GoodLiving />
-      </div>  */}
+      </div> */}
       <NamingSystemSection />
+
+      {/* MFit Popup */}
+      <GetMyFitPopup
+        open={isGetMyFitPopupOpen}
+        onClose={() => setIsGetMyFitPopupOpen(false)}
+      />
     </>
   );
 };

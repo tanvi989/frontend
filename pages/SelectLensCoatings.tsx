@@ -113,31 +113,31 @@ const SelectLensCoatings: React.FC = () => {
 
   const COATING_OPTIONS = [
     {
-      id: "oil-resistant",
-      title: "Oil Resistant Coating",
-      price: "+£15",
-      priceValue: 15,
-      description: "Reduces light reflections, UV protection, prevents water & oil stains, easy to clean.",
-      recommended: false,
-      icon: () => <img src="/icon3.svg" alt="Oil Resistant" className="w-12 h-12 object-contain" />,
-    },
-    {
-      id: "water-resistant",
-      title: "Water Resistant",
-      price: "+£10",
-      priceValue: 10,
-      description: "Reduces light reflections, UV protection & prevents water stains.",
-      recommended: false,
-      icon: () => <img src="/icon2.svg" alt="Water Resistant" className="w-12 h-12 object-contain" />,
-    },
-    {
       id: "anti-reflective",
       title: "Anti Reflective Coating",
       price: "+£0",
       priceValue: 0,
-      description: "Reduces light reflections, UV protection",
-      recommended: true,
+      description: "Includes only anti reflective coating.",
+      recommended: false,
       icon: () => <img src="/icon1.svg" alt="Anti Reflective" className="w-12 h-12 object-contain" />,
+    },
+    {
+      id: "water-resistant",
+      title: "Water Resistant Coating",
+      price: "+£10",
+      priceValue: 10,
+      description: "Includes a free anti-reflective coating and UV coating.",
+      recommended: false,
+      icon: () => <img src="/icon2.svg" alt="Water Resistant" className="w-12 h-12 object-contain" />,
+    },
+    {
+      id: "oil-resistant",
+      title: "Oil Resistant Coating",
+      price: "+£15",
+      priceValue: 15,
+      description: "Includes a free water-resistant coating, an anti-reflective coating, and a UV coating.",
+      recommended: false,
+      icon: () => <img src="/icon3.svg" alt="Oil Resistant" className="w-12 h-12 object-contain" />,
     },
   ];
 
@@ -446,14 +446,6 @@ const SelectLensCoatings: React.FC = () => {
                   <p className="text-sm text-[#525252] font-medium mt-1 leading-snug">
                     {coating.description}
                   </p>
-
-                  {coating.recommended && (
-                    <div className="mt-2">
-                      <span className="text-xs font-bold text-white uppercase tracking-wide bg-[#025048] px-2 py-1 rounded-full">
-                       Included
-                      </span>
-                    </div>
-                  )}
                 </div>
 
               </button>
