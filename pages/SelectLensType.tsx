@@ -364,7 +364,7 @@ const SelectLensType: React.FC = () => {
           lensCategory: state?.lensCategory || selectedCategory,
           mainCategory: mainCategoryValue,
           lensType: state?.lensType,
-        });
+        }, product?.skuid);
 
         // Check session storage for product-based prescriptions
         const sessionPrescriptions = JSON.parse(sessionStorage.getItem('productPrescriptions') || '{}');

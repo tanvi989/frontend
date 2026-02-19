@@ -646,7 +646,8 @@ const SelectLensPackages: React.FC = () => {
         JSON.stringify({
           lensPackage: pkgId,
           lensPackagePrice: priceValue,
-          lensCategory: state?.lensCategory,
+          lensCategory: lensCategory,
+          productId: id,
           updatedAt: Date.now(),
         })
       );

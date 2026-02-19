@@ -283,7 +283,7 @@ const SelectLensCoatings: React.FC = () => {
       });
 
 
-      // Persist the user's chosen prices locally (backend may not echo them back reliably)
+      // Persist the user's chosen prices locally (backend may not echo them back reliably). Pass id (SKU) so override survives cart_id change after login.
       setCartLensOverride(cartId, {
         lensPackage: lensPackage,
         lensPackagePrice: Number(lensPackagePrice || 0),
@@ -297,7 +297,7 @@ const SelectLensCoatings: React.FC = () => {
         lensType: state?.lensType,
         coatingTitle: selectedCoatingOption?.title,
         coatingPrice: Number(selectedCoatingOption?.priceValue || 0),
-      });
+      }, id ?? undefined);
 
 
       // Clear pending selection once we've persisted it against a real cart_id

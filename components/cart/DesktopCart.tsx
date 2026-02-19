@@ -24,7 +24,7 @@ import DeleteDialog from "../DeleteDialog";
 import { LoginModal } from "../LoginModal";
 import SignUpModal from "../SignUpModal";
 import ManualPrescriptionModal from "../ManualPrescriptionModal";
-import { getLensCoating, getTintInfo, calculateCartSubtotal, calculateItemTotal, getLensPackagePrice, getCartLensOverride, setCartLensOverride, getLensTypeDisplay, getLensIndex } from "../../utils/priceUtils";
+import { getLensCoating, getTintInfo, calculateCartSubtotal, calculateItemTotal, getLensPackagePrice, getCartLensOverride, getCartLensOverrideBySku, setCartLensOverride, getLensTypeDisplay, getLensIndex } from "../../utils/priceUtils";
 import { getProductFlow } from "../../utils/productFlowStorage";
 import { trackBeginCheckout } from "../../utils/analytics";
 
@@ -291,6 +291,7 @@ const DesktopCart: React.FC = () => {
         }
     }, [isFetched, isLoading, refetch]);
 
+
     if (cartResponse?.error) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-red-50 text-red-600 font-bold">
@@ -303,13 +304,24 @@ const DesktopCart: React.FC = () => {
     const cartData = cartResponse; // Contains summary, coupon, shipping info
 
     // Sync shipping method from server response when available
-   useEffect(() => {
+useEffect(() => {
     if (!cartItems?.length) return;
+
+    // Read pending selection — keyed by SKU so it survives cart_id change after login
+    let pendingSelection: any = null;
+    try {
+        const raw = sessionStorage.getItem("pending_lens_selection_v1");
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Date.now() - parsed.updatedAt < 10 * 60 * 1000) {
+                pendingSelection = parsed;
+            }
+        }
+    } catch { }
+
     cartItems.forEach((item: CartItem) => {
         const lensAny = item.lens as any;
-        const itemAny = item as any;
         const sku = item.product?.products?.skuid || item.product_id;
-        const override = getCartLensOverride(item.cart_id);
 
         // Migrate override if cart_id changed after login
         const oldCartId = prevCartIdsRef.current.get(String(sku));
@@ -322,13 +334,39 @@ const DesktopCart: React.FC = () => {
         }
         if (sku) prevCartIdsRef.current.set(String(sku), item.cart_id);
 
-        // Restore lens price from backend if override is missing/zero
-        const freshOverride = getCartLensOverride(item.cart_id);
-        const overridePriceIsEmpty =
-            !freshOverride?.lensPackagePrice ||
-            Number(freshOverride.lensPackagePrice) === 0;
+        // Pending selection wins over everything — it's the user's explicit choice
+        // Works even after login because it's keyed by SKU not cart_id
+        if (pendingSelection && String(pendingSelection.productId) === String(sku)) {
+            const freshOverride = getCartLensOverride(item.cart_id);
+            const alreadyCorrect = freshOverride &&
+                freshOverride.lensPackage === pendingSelection.lensPackage &&
+                freshOverride.lensPackagePrice === pendingSelection.lensPackagePrice;
+            if (!alreadyCorrect) {
+                console.log(`⚡ Applying pending selection £${pendingSelection.lensPackagePrice} for cart_id ${item.cart_id}`);
+                setCartLensOverride(item.cart_id, {
+                    ...freshOverride,
+                    lensPackage: pendingSelection.lensPackage,
+                    lensPackagePrice: pendingSelection.lensPackagePrice,
+                    lensCategory: pendingSelection.lensCategory,
+                });
+            }
+            return; // Skip backend restoration for this item
+        }
 
-        if (overridePriceIsEmpty && lensAny) {
+        // If still no override by cart_id, try SKU (survives cart_id change after login)
+        let freshOverride = getCartLensOverride(item.cart_id);
+        if ((!freshOverride || Object.keys(freshOverride).length === 0) && sku) {
+            const bySkuOverride = getCartLensOverrideBySku(String(sku));
+            if (bySkuOverride && Object.keys(bySkuOverride).length > 0) {
+                console.log(`🔄 Applying lens override by SKU ${sku} → cart_id ${item.cart_id}`);
+                setCartLensOverride(item.cart_id, bySkuOverride, String(sku));
+                freshOverride = bySkuOverride;
+            }
+        }
+
+        // Only restore from backend if NO override exists at all (don't overwrite user's £0 choice)
+        const overrideMissing = !freshOverride || Object.keys(freshOverride).length === 0;
+        if (overrideMissing && lensAny) {
             const backendPrice =
                 Number(lensAny.selling_price) ||
                 Number(lensAny.price) ||
@@ -338,14 +376,13 @@ const DesktopCart: React.FC = () => {
             if (backendPrice > 0) {
                 console.log(`✅ Restoring lens price £${backendPrice} for cart_id ${item.cart_id}`);
                 setCartLensOverride(item.cart_id, {
-                    ...freshOverride,
                     lensPackagePrice: backendPrice,
-                    lensPackage: freshOverride?.lensPackage || lensAny?.lens_package,
-                    lensCategory: freshOverride?.lensCategory || lensAny?.lens_category,
-                    mainCategory: freshOverride?.mainCategory || lensAny?.main_category,
-                    lensType: freshOverride?.lensType,
-                    coatingTitle: freshOverride?.coatingTitle || lensAny?.coating,
-                    coatingPrice: freshOverride?.coatingPrice ?? 0,
+                    lensPackage: lensAny?.lens_package,
+                    lensCategory: lensAny?.lens_category,
+                    mainCategory: lensAny?.main_category,
+                    lensType: undefined,
+                    coatingTitle: lensAny?.coating,
+                    coatingPrice: 0,
                 });
             }
         }
@@ -565,9 +602,10 @@ const DesktopCart: React.FC = () => {
                 setIsAddingDuplicate(false);
                 return;
             }
+            const sku = (product as any)?.skuid ?? (product as any)?.id ?? item.product_id;
 
             // Extract lens data
-            const lensOverride = getCartLensOverride(item.cart_id);
+            const lensOverride = getCartLensOverride(item.cart_id) ?? (sku ? getCartLensOverrideBySku(String(sku)) : null);
             const lensPackagePrice = getLensPackagePrice(item);
             const coatingInfo = getLensCoating(item);
             const tintInfo = getTintInfo(item);
@@ -628,7 +666,7 @@ const DesktopCart: React.FC = () => {
                         tintType: options.tintType,
                         tintColor: options.tintColor,
                         tintPrice: options.tintPrice,
-                    });
+                    }, sku ?? undefined);
                 }
                 refetch();
                 console.log("✅ Added duplicate product to cart successfully");
@@ -959,13 +997,14 @@ const DesktopCart: React.FC = () => {
         return sizeUpper; // Return as-is if already formatted
     };
 
- // Helper function to get lens type display
+ // Helper function to get lens type display (use SKU fallback so override survives login)
     const getLensTypeDisplay = (item: CartItem): string => {
         const itemAny = item as any;
         const lensAny = item.lens as any;
+        const sku = itemAny?.product?.products?.skuid ?? itemAny?.product_id ?? item?.product_id;
 
-        // Check override first (this is where frontend stores the selected lens category and tier)
-        const override = getCartLensOverride(item.cart_id);
+        // Check override first (by cart_id, then by SKU)
+        const override = getCartLensOverride(item.cart_id) ?? (sku ? getCartLensOverrideBySku(String(sku)) : null);
 
         // DEBUG: Log the data
         console.log("🔍 DEBUG getLensTypeDisplay:", {
@@ -1052,12 +1091,13 @@ const DesktopCart: React.FC = () => {
         return result;
     };
 
-    // Helper function to extract lens index
+    // Helper function to extract lens index (use SKU fallback so override survives login)
     const getLensIndex = (item: CartItem): { index: string; price: number } => {
         const itemAny = item as any;
         const lensAny = (itemAny?.lens ?? itemAny?.lens_data ?? itemAny?.lensData ?? item.lens) as any;
         const sellingPrice = getLensPackagePrice(item);
-        const override = getCartLensOverride(item.cart_id);
+        const sku = itemAny?.product?.products?.skuid ?? itemAny?.product_id ?? item?.product_id;
+        const override = getCartLensOverride(item.cart_id) ?? (sku ? getCartLensOverrideBySku(String(sku)) : null);
 
         console.log("🔍 DEBUG getLensIndex:", {
             cart_id: item.cart_id,
@@ -1075,18 +1115,11 @@ const DesktopCart: React.FC = () => {
 
         // Get the lens index number
         let indexNumber = "1.61"; // default
-        let lensPackagePrice: number =
-    (override?.lensPackagePrice && Number(override.lensPackagePrice) > 0)
-        ? Number(override.lensPackagePrice)
-        : (itemAny?.lensPackagePrice && Number(itemAny.lensPackagePrice) > 0)
-            ? Number(itemAny.lensPackagePrice)
-            : (lensAny?.selling_price && Number(lensAny.selling_price) > 0)
-                ? Number(lensAny.selling_price)
-                : (lensAny?.price && Number(lensAny.price) > 0)
-                    ? Number(lensAny.price)
-                    : (lensAny?.cost && Number(lensAny.cost) > 0)
-                        ? Number(lensAny.cost)
-                        : sellingPrice;
+    let lensPackagePrice: number = override
+    ? Number(override.lensPackagePrice ?? 0)
+    : (lensAny?.selling_price && Number(lensAny.selling_price) > 0)
+        ? Number(lensAny.selling_price)
+        : sellingPrice;
 
         // 1. Try to get from item-level fields (from selectLens API call)
         if (override?.lensPackage) {

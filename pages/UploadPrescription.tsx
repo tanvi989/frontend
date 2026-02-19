@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams, useSearchParams } from "react-rout
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import CheckoutStepper from "../components/CheckoutStepper";
 import Toast from "../components/Toast";
-import { saveMyPrescription, uploadPrescriptionImage, addPrescription, getMyPrescriptions } from "../api/retailerApis";
+import { saveMyPrescription, uploadPrescriptionImage, addPrescription, getMyPrescriptions, getCart } from "../api/retailerApis";
 import PrescriptionHelpModal from "../components/PrescriptionHelpModal";
 import { getProductFlow, setProductFlow } from "../utils/productFlowStorage";
 import { compressImage } from "../utils/imageUtils";
@@ -157,8 +157,38 @@ const UploadPrescription: React.FC = () => {
 
 
 
-    const [searchParams] = useSearchParams();
-    const cartItemId = searchParams.get("cart_id");
+    const [searchParams, setSearchParams] = useSearchParams();
+    const cartIdRaw = searchParams.get("cart_id");
+    const [effectiveCartId, setEffectiveCartId] = useState<string | null>(null);
+    useEffect(() => {
+        if (!cartIdRaw) {
+            setEffectiveCartId(null);
+            return;
+        }
+        let cancelled = false;
+        getCart({})
+            .then((res: any) => {
+                if (cancelled) return;
+                const cart = res?.data?.cart ?? res?.cart ?? [];
+                const exists = Array.isArray(cart) && cart.some((item: any) => String(item.cart_id ?? item.cart_item_id ?? item.id) === String(cartIdRaw));
+                if (exists) {
+                    setEffectiveCartId(String(cartIdRaw));
+                } else {
+                    setEffectiveCartId(null);
+                    if (id) setProductFlow(id, { cart_id: undefined });
+                    setSearchParams((prev) => {
+                        const next = new URLSearchParams(prev);
+                        next.delete("cart_id");
+                        return next;
+                    }, { replace: true });
+                }
+            })
+            .catch(() => {
+                if (!cancelled) setEffectiveCartId(null);
+            });
+        return () => { cancelled = true; };
+    }, [cartIdRaw, id, setSearchParams]);
+    const cartItemId = effectiveCartId;
     const productSku = state?.product?.skuid || state?.product?.id || id;
 
     const handleSaveAndContinue = async () => {

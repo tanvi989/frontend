@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import CheckoutStepper from "../components/CheckoutStepper";
-import { saveMyPrescription, uploadPrescriptionImage } from "../api/retailerApis";
+import { saveMyPrescription, uploadPrescriptionImage, getCart } from "../api/retailerApis";
 import { getProductFlow, setProductFlow } from "../utils/productFlowStorage";
 import { compressImage } from "../utils/imageUtils";
 import GetMyFitPopup from "../components/getMyFitPopup/GetMyFitPopup";
@@ -25,6 +25,28 @@ const AddPrescription: React.FC = () => {
     const queryClient = useQueryClient();
     const cartIdFromUrl = searchParams.get("cart_id") || locationState?.cartId || (locationState as any)?.cart_id;
     const productSku = state?.product?.skuid || state?.product?.id || id;
+
+    // Validate cart_id so stale IDs (e.g. after placing an order) are ignored; use only when still in current cart
+    const [validCartId, setValidCartId] = useState<string | null>(null);
+    useEffect(() => {
+        if (!cartIdFromUrl) {
+            setValidCartId(null);
+            return;
+        }
+        let cancelled = false;
+        getCart({})
+            .then((res: any) => {
+                if (cancelled) return;
+                const cart = res?.data?.cart ?? res?.cart ?? [];
+                const exists = Array.isArray(cart) && cart.some((item: any) => String(item.cart_id ?? item.cart_item_id ?? item.id) === String(cartIdFromUrl));
+                setValidCartId(exists ? String(cartIdFromUrl) : null);
+                if (!exists && id) setProductFlow(id, { cart_id: undefined });
+            })
+            .catch(() => {
+                if (!cancelled) setValidCartId(null);
+            });
+        return () => { cancelled = true; };
+    }, [cartIdFromUrl, id]);
 
     // Camera State
     const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -151,17 +173,17 @@ const AddPrescription: React.FC = () => {
     const handleSelection = (
         selectedMethod: "manual" | "upload" | "photo" | "later"
     ) => {
-        // When adding prescription to existing cart item, pass cart_id in URL so we don't add a new product
-        const cartQuery = cartIdFromUrl ? `?cart_id=${cartIdFromUrl}` : "";
+        // When adding prescription to existing cart item, pass cart_id only if it's still valid (in current cart)
+        const cartQuery = validCartId ? `?cart_id=${validCartId}` : "";
         if (selectedMethod === "manual") {
-            navigate(`/product/${id}/manual-prescription${cartQuery}`.replace(/\?$/, ""), { state: { ...state, cartId: cartIdFromUrl, cart_id: cartIdFromUrl } });
+            navigate(`/product/${id}/manual-prescription${cartQuery}`.replace(/\?$/, ""), { state: { ...state, cartId: validCartId ?? undefined, cart_id: validCartId ?? undefined } });
         } else if (selectedMethod === "upload") {
-            navigate(`/product/${id}/upload-prescription${cartQuery}`.replace(/\?$/, ""), { state: { ...state, cartId: cartIdFromUrl, cart_id: cartIdFromUrl } });
+            navigate(`/product/${id}/upload-prescription${cartQuery}`.replace(/\?$/, ""), { state: { ...state, cartId: validCartId ?? undefined, cart_id: validCartId ?? undefined } });
         } else if (selectedMethod === "photo") {
             setIsCameraOpen(true);
         } else {
             // For "later" only when NOT from cart - from cart we should not go to select-lens (would add new item)
-            if (cartIdFromUrl) {
+            if (validCartId) {
                 sessionStorage.setItem("fromPrescription", "true");
                 navigate("/cart");
                 return;
@@ -284,7 +306,7 @@ const AddPrescription: React.FC = () => {
                 const fileNameForPayload = file.name;
                 const associatedProduct = {
                     ...(productSku && { productSku: String(productSku) }),
-                    ...(cartIdFromUrl && { cartId: String(cartIdFromUrl) }),
+                    ...(validCartId && { cartId: String(validCartId) }),
                     ...(state?.product?.name && { productName: state.product.name }),
                 };
                 const uniqueId = `pres_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -295,7 +317,7 @@ const AddPrescription: React.FC = () => {
                     guestId,
                     createdAt: new Date().toISOString(),
                     associatedProduct: {
-                        cartId: cartIdFromUrl || undefined,
+                        cartId: validCartId ?? undefined,
                         productSku: productSku ?? undefined,
                         productName: state?.product?.name || "Product",
                         uniqueId,
@@ -318,7 +340,7 @@ const AddPrescription: React.FC = () => {
                 try {
                     const list = JSON.parse(localStorage.getItem('prescriptions') || '[]');
                     const productSkuStr = productSku ? String(productSku) : "";
-                    const cartIdStr = cartIdFromUrl ? String(cartIdFromUrl) : "";
+                    const cartIdStr = validCartId ? String(validCartId) : "";
                     const filtered = list.filter((p: any) => {
                         const pSku = p?.associatedProduct?.productSku ?? p?.data?.associatedProduct?.productSku;
                         const pCart = p?.associatedProduct?.cartId ?? p?.data?.associatedProduct?.cartId;
@@ -373,7 +395,7 @@ const AddPrescription: React.FC = () => {
         }
 
         // When adding prescription to an existing cart item, return to cart only — do not go to select-lens (that would add a new product)
-        if (cartIdFromUrl) {
+        if (validCartId) {
             sessionStorage.setItem("fromPrescription", "true");
             setShowPreview(false);
             navigate("/cart");

@@ -21,10 +21,22 @@ type LensSelectionOverride = {
 };
 
 const OVERRIDES_KEY = "cart_lens_overrides_v1";
+const OVERRIDES_BY_SKU_KEY = "cart_lens_overrides_by_sku_v1";
 
 const readOverrides = (): Record<string, LensSelectionOverride> => {
     try {
         const raw = sessionStorage.getItem(OVERRIDES_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+        return {};
+    }
+};
+
+const readOverridesBySku = (): Record<string, LensSelectionOverride> => {
+    try {
+        const raw = sessionStorage.getItem(OVERRIDES_BY_SKU_KEY);
         if (!raw) return {};
         const parsed = JSON.parse(raw);
         return parsed && typeof parsed === "object" ? parsed : {};
@@ -41,11 +53,31 @@ const writeOverrides = (next: Record<string, LensSelectionOverride>) => {
     }
 };
 
-export const setCartLensOverride = (cartId: number | string, override: LensSelectionOverride) => {
+const writeOverridesBySku = (next: Record<string, LensSelectionOverride>) => {
+    try {
+        sessionStorage.setItem(OVERRIDES_BY_SKU_KEY, JSON.stringify(next));
+    } catch {
+        // ignore storage failures
+    }
+};
+
+export const setCartLensOverride = (cartId: number | string, override: LensSelectionOverride, sku?: string) => {
     const key = String(cartId);
     const existing = readOverrides();
     existing[key] = { ...(existing[key] || {}), ...override, updatedAt: Date.now() };
     writeOverrides(existing);
+    if (sku != null && String(sku).trim() !== "") {
+        const bySku = readOverridesBySku();
+        bySku[String(sku)] = { ...(bySku[String(sku)] || {}), ...override, updatedAt: Date.now() };
+        writeOverridesBySku(bySku);
+    }
+};
+
+/** Get lens override by product SKU (survives cart_id change after login) */
+export const getCartLensOverrideBySku = (sku: string): LensSelectionOverride | null => {
+    if (!sku) return null;
+    const bySku = readOverridesBySku();
+    return bySku[String(sku)] || null;
 };
 
 export const formatFrameSize = (size?: string): string => {
@@ -66,9 +98,11 @@ export const getCartLensOverride = (cartId: number | string): LensSelectionOverr
 export const getLensPackagePrice = (item: CartItem): number => {
     const itemAny = item as any;
     const lensAny = (itemAny?.lens ?? itemAny?.lens_data ?? itemAny?.lensData) as any;
+    const cartId = (itemAny?.cart_id ?? itemAny?.id) as any;
+    const sku = itemAny?.product?.products?.skuid ?? itemAny?.product_id ?? item?.product_id;
 
-    // Highest priority: explicit selection override stored at selection time
-    const override = getCartLensOverride((itemAny?.cart_id ?? itemAny?.id) as any);
+    // Highest priority: explicit selection override (by cart_id, then by SKU so it survives login)
+    const override = getCartLensOverride(cartId) ?? (sku ? getCartLensOverrideBySku(String(sku)) : null);
     if (override?.lensPackagePrice != null) {
         return toNumber(override.lensPackagePrice, 0);
     }
@@ -76,7 +110,7 @@ export const getLensPackagePrice = (item: CartItem): number => {
     // For sunglasses tint flows, the tint price should be shown under "Lens Tint" (not Lens Index)
     // so we treat lens package price as 0 unless explicitly overridden above.
     if ((override?.tintPrice != null) || lensAny?.tint_price != null || lensAny?.tint_type != null || lensAny?.lens_category === "sun") {
-        return 49;
+        return 0;
     }
 
     // Prefer item-level fields (often set by selectLens / add-to-cart flows)
@@ -99,9 +133,11 @@ export const getLensPackagePrice = (item: CartItem): number => {
 export const getLensCoating = (item: CartItem): { name: string; price: number } => {
     const itemAny = item as any;
     const lensAny = (itemAny?.lens ?? itemAny?.lens_data ?? itemAny?.lensData) as any;
+    const cartId = (itemAny?.cart_id ?? itemAny?.id) as any;
+    const sku = itemAny?.product?.products?.skuid ?? itemAny?.product_id ?? item?.product_id;
 
-    // Highest priority: explicit selection override stored at selection time
-    const override = getCartLensOverride((itemAny?.cart_id ?? itemAny?.id) as any);
+    // Highest priority: explicit selection override (by cart_id, then by SKU so it survives login)
+    const override = getCartLensOverride(cartId) ?? (sku ? getCartLensOverrideBySku(String(sku)) : null);
     if (override?.coatingTitle || override?.coatingPrice != null) {
         return {
             name: String(override.coatingTitle || "Coating"),
@@ -190,9 +226,11 @@ export const getLensCoating = (item: CartItem): { name: string; price: number } 
 export const getTintInfo = (item: CartItem): { type: string; color: string; price: number } | null => {
     const itemAny = item as any;
     const lensAny = (itemAny?.lens ?? itemAny?.lens_data ?? itemAny?.lensData ?? item.lens) as any;
+    const cartId = (itemAny?.cart_id ?? itemAny?.id) as any;
+    const sku = itemAny?.product?.products?.skuid ?? itemAny?.product_id ?? item?.product_id;
 
-    // Highest priority: explicit selection override stored at selection time
-    const override = getCartLensOverride((itemAny?.cart_id ?? itemAny?.id) as any);
+    // Highest priority: explicit selection override (by cart_id, then by SKU so it survives login)
+    const override = getCartLensOverride(cartId) ?? (sku ? getCartLensOverrideBySku(String(sku)) : null);
     if (override?.tintType || override?.tintPrice != null) {
         const tintPrice = toNumber(override.tintPrice ?? 0, 0);
         // Only return tint info if price > 0, otherwise let coating display
@@ -250,9 +288,10 @@ export const calculateCartSubtotal = (cartItems: CartItem[]): number => {
 export const getLensTypeDisplay = (item: CartItem): string => {
     const itemAny = item as any;
     const lensAny = item.lens as any;
+    const sku = itemAny?.product?.products?.skuid ?? itemAny?.product_id ?? item?.product_id;
 
-    // Check override first (this is where frontend stores the selected lens category and tier)
-    const override = getCartLensOverride(item.cart_id);
+    // Check override first (by cart_id, then by SKU so it survives login)
+    const override = getCartLensOverride(item.cart_id) ?? (sku ? getCartLensOverrideBySku(String(sku)) : null);
 
     // Use override mainCategory if available, otherwise use backend main_category
     const mainCategory = override?.mainCategory || item.lens?.main_category || "";
@@ -314,7 +353,9 @@ export const getLensIndex = (item: CartItem): { index: string; price: number } =
     const itemAny = item as any;
     const lensAny = (itemAny?.lens ?? itemAny?.lens_data ?? itemAny?.lensData ?? item.lens) as any;
     const sellingPrice = getLensPackagePrice(item);
-    const override = getCartLensOverride((itemAny?.cart_id ?? itemAny?.id) as any);
+    const cartId = (itemAny?.cart_id ?? itemAny?.id) as any;
+    const sku = itemAny?.product?.products?.skuid ?? itemAny?.product_id ?? item?.product_id;
+    const override = getCartLensOverride(cartId) ?? (sku ? getCartLensOverrideBySku(String(sku)) : null);
 
     // Get the lens index number
     let indexNumber = "1.61"; // default

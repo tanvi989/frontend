@@ -196,7 +196,7 @@ const SelectLensColor: React.FC = () => {
       );
       console.log("selectLens response:", selectLensResponse);
 
-      // Persist selection locally so Cart reflects it even if backend doesn't echo these fields back (include lens package e.g. 1.56)
+      // Persist selection locally so Cart reflects it even if backend doesn't echo these fields back (include lens package e.g. 1.56). Pass product id so override survives cart_id change after login.
       setCartLensOverride(cartId, {
         lensCategory: "sun",
         lensPackage: state?.selectedLensPackage || "1.56",
@@ -205,7 +205,7 @@ const SelectLensColor: React.FC = () => {
         tintType: selectedTint.name,
         tintColor: selectedColor,
         tintPrice: Number(selectedTint.price || 0),
-      });
+      }, id ?? product?.skuid);
 
       // Step 3: Invalidate cart queries and navigate
       queryClient.invalidateQueries({ queryKey: ["cart"] });

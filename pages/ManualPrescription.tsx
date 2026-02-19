@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Formik, Form, FormikProps } from "formik";
 import * as Yup from "yup";
@@ -13,8 +13,8 @@ import ProductDetailsFooter from "../components/ProductDetailsFooter";
 import Toast from "../components/Toast";
 import { X } from "lucide-react";
 import ConfirmPrescription from "../components/prescription/ConfirmPrescription";
-import { saveMyPrescription } from "../api/retailerApis";
-import { getProductFlow } from "../utils/productFlowStorage";
+import { saveMyPrescription, getCart } from "../api/retailerApis";
+import { getProductFlow, setProductFlow } from "../utils/productFlowStorage";
 
 // Component defined outside to prevent re-rendering focus loss
 const PrismRadio = ({
@@ -144,13 +144,44 @@ const ManualPrescription: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  // Check if coming from cart (URL param or location state when navigated from AddPrescription with cart_id)
+  // Check if coming from cart (URL param or location state). Validate cart_id so stale IDs (e.g. after placing an order) are ignored.
   const cartIdFromUrl = searchParams.get("cart_id");
   const cartIdFromState = (locationState as any)?.cartId ?? (locationState as any)?.cart_id;
-  const cartId = cartIdFromUrl || cartIdFromState || undefined;
-  const isFromCart = !!cartId;
+  const cartIdRaw = cartIdFromUrl || cartIdFromState || undefined;
+  const [effectiveCartId, setEffectiveCartId] = useState<string | null>(cartIdRaw ?? null);
+  const isFromCart = !!effectiveCartId;
+
+  // Validate cart_id against current cart; if not found (e.g. cart cleared after order), treat as new flow so product gets added
+  useEffect(() => {
+    if (!cartIdRaw) {
+      setEffectiveCartId(null);
+      return;
+    }
+    let cancelled = false;
+    getCart({})
+      .then((res: any) => {
+        if (cancelled) return;
+        const cart = res?.data?.cart ?? res?.cart ?? [];
+        const exists = Array.isArray(cart) && cart.some((item: any) => String(item.cart_id ?? item.cart_item_id ?? item.id) === String(cartIdRaw));
+        if (exists) {
+          setEffectiveCartId(String(cartIdRaw));
+        } else {
+          setEffectiveCartId(null);
+          if (id) setProductFlow(id, { cart_id: undefined });
+          setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            next.delete("cart_id");
+            return next;
+          }, { replace: true });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setEffectiveCartId(null);
+      });
+    return () => { cancelled = true; };
+  }, [cartIdRaw, id, setSearchParams]);
 
   const [helpModalOpen, setHelpModalOpen] = useState(false);
   const [helpModalTab, setHelpModalTab] = useState("Pupillary Distance");
@@ -284,9 +315,9 @@ const ManualPrescription: React.FC = () => {
   };
 
   const handleFinalSave = async () => {
-    // Generate a unique ID for this specific prescription/product pairing
+    // Generate a unique ID for this specific prescription/product pairing. Use validated effectiveCartId so we don't link to a stale cart item.
     const uniqueId = `pres_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const cartItemId = cartId ?? searchParams.get("cart_id");
+    const cartItemId = effectiveCartId ?? null;
     console.log("📝 [ManualPrescription] Saving prescription with cartId:", cartItemId);
 
     // Construct the payload matching the schema
