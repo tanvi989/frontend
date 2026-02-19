@@ -312,7 +312,7 @@ const SelectPrescriptionType: React.FC = () => {
                     <div className="flex-1 pr-2">
                       <p className="text-xs font-semibold bg-black text-white px-2 py-1 rounded mb-1 uppercase tracking-wider inline-block">Recommended for Repeat Multifocal Users</p>
                       <h3 className="text-lg md:text-base font-bold text-[#1F1F1F]">
-                        Precision+ Options
+                        Precision+
                       </h3>
                     </div>
                     <div className="md:hidden flex items-center justify-center">
@@ -366,7 +366,7 @@ const SelectPrescriptionType: React.FC = () => {
                     <div className="flex-1 pr-2">
                       <p className="text-xs font-semibold bg-black text-white px-2 py-1 rounded mb-1 uppercase tracking-wider inline-block">Recommended for New Multifocal User</p>
                       <h3 className="text-lg md:text-base font-bold text-[#1F1F1F]">
-                        Advanced Options
+                        Advanced
                       </h3>
                     </div>
                     <div className="md:hidden flex items-center justify-center">
@@ -420,7 +420,7 @@ const SelectPrescriptionType: React.FC = () => {
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex-1 pr-2">
                         <h3 className="text-lg md:text-base font-bold text-[#1F1F1F]">
-                          Standard Options
+                          Standard 
                         </h3>
                       </div>
                       <div className="md:hidden flex items-center justify-center">
