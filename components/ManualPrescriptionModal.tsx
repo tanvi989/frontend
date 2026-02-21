@@ -363,15 +363,22 @@ const ManualPrescriptionModal: React.FC<ManualPrescriptionModalProps> = ({
 
                             {/* ADD Power, PD, Birth Year */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                {/* ADD Power */}
-                                {details.addPower && (
+                                {/* FIX: Show Reading Power for both eyes if they exist */}
+                                {(details.readingPowerRight || details.readingPowerLeft || details.addPower) && (
                                     <div className="bg-gray-50 p-4 rounded-lg">
                                         <p className="text-xs font-bold text-gray-500 uppercase mb-1">
-                                            ADD Power
+                                            Reading / Add Power
                                         </p>
-                                        <p className="text-base font-medium text-[#1F1F1F]">
-                                            {details.addPower}
-                                        </p>
+                                        <div className="text-base font-medium text-[#1F1F1F]">
+                                            {(details.readingPowerRight || details.readingPowerLeft) ? (
+                                                <div className="flex gap-4">
+                                                    {details.readingPowerRight && <span>R: {details.readingPowerRight}</span>}
+                                                    {details.readingPowerLeft && <span>L: {details.readingPowerLeft}</span>}
+                                                </div>
+                                            ) : (
+                                                <span>{details.addPower}</span>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
 

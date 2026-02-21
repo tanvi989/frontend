@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import CheckoutStepper from "../components/CheckoutStepper";
 import Toast from "../components/Toast";
@@ -29,6 +29,9 @@ const SelectPrescriptionSource: React.FC = () => {
   const [capturedPD, setCapturedPD] = useState<{ pdSingle?: number; pdRight?: number; pdLeft?: number } | null>(null);
   const [pdFilledByMfit, setPdFilledByMfit] = useState(false);
 
+  // Ref for the audio element
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   // Ref for scrolling to PD form on mobile
   const pdFormRef = React.useRef<HTMLDivElement>(null);
 
@@ -38,31 +41,45 @@ const SelectPrescriptionSource: React.FC = () => {
     }, 50);
   };
 
-  const pdVoiceText =
-    "PD, made easy. Let's keep this simple. " +
-    "Some prescriptions show Distance PD and Near PD. For multifocal or progressive lenses, always use Distance PD. " +
-    "If your prescription shows just one PD value, that's absolutely fine. Enter it as it is — we'll handle the rest. " +
-    "You can also choose to split the PD evenly between both eyes. For example, if your PD is 66, enter 33 for the right eye and 33 for the left eye. " +
-    "If your prescription shows separate values for each eye, select Dual PD and enter the left and right values exactly as written. " +
-    "And if your prescription doesn't mention PD at all, don't worry — you're in safe hands. " +
-    "Use Generate PD with MFit. Our technology measures both eyes precisely, and has been tested on thousands of people. " +
-    "Your PD is delivered instantly, with accuracy you can trust. " +
-    "And every order is protected by our 30-day, no-questions-asked guarantee.";
-
-  // Play voice every time user lands on this page (pathname includes select-prescription-source)
+  // --- AUDIO LOGIC REPLACEMENT ---
+  // Play pd.mp3 on mount, stop on unmount
   useEffect(() => {
-    if (voiceMuted || !window.speechSynthesis || !pathname.includes("select-prescription-source")) return;
-    const timer = setTimeout(() => {
-      const utterance = new SpeechSynthesisUtterance(pdVoiceText);
-      utterance.rate = 0.9;
-      utterance.lang = "en-US";
-      window.speechSynthesis.speak(utterance);
-    }, 300);
+    // Create audio instance
+    audioRef.current = new Audio('/pd.mp3');
+
+    // Attempt to play
+    if (!voiceMuted) {
+      audioRef.current.play().catch((e) => {
+        console.log("Audio autoplay blocked or file not found:", e);
+        // If blocked, we might want to set muted to true so user can click to play
+        // setVoiceMuted(true); 
+      });
+    }
+
+    // Cleanup: Stop audio if user navigates away
     return () => {
-      clearTimeout(timer);
-      window.speechSynthesis.cancel();
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        audioRef.current = null;
+      }
     };
-  }, [voiceMuted, pathname]);
+  }, []); // Run once on mount
+
+  // Handle Mute/Unmute toggle
+  const toggleMute = () => {
+    if (!audioRef.current) return;
+
+    if (voiceMuted) {
+      // Currently muted -> Unmute and Play
+      audioRef.current.play().catch(e => console.log("Play error", e));
+      setVoiceMuted(false);
+    } else {
+      // Currently playing -> Pause
+      audioRef.current.pause();
+      setVoiceMuted(true);
+    }
+  };
 
   const pdOptions = React.useMemo(
     () => Array.from({ length: 45 }, (_, i) => (20 + i * 0.5).toFixed(2)),
@@ -548,14 +565,7 @@ const SelectPrescriptionSource: React.FC = () => {
             </h4>
             <button
               type="button"
-              onClick={() => {
-                if (voiceMuted) {
-                  setVoiceMuted(false);
-                } else {
-                  window.speechSynthesis.cancel();
-                  setVoiceMuted(true);
-                }
-              }}
+              onClick={toggleMute}
               className="p-1.5 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
               aria-label={voiceMuted ? "Play PD info" : "Mute PD info"}
               title={voiceMuted ? "Play again" : "Mute"}

@@ -720,12 +720,12 @@ export const Navigation: React.FC = () => {
                           {/* Right side - Image/Icon */}
                           <div className="ml-4 flex-shrink-0 relative w-10 h-10 sm:w-12 sm:h-12">
                             <img
-                              src="/drop4yellow.png"
+                              src="/try-mfit-circle.svg"
                               alt="Icon 4"
                               className="w-full h-full object-contain opacity-100 group-hover:opacity-0 transition-opacity duration-300"
                             />
                             <img
-                              src="/drop4red.png"
+                              src="/try-mfit-circle.svg"
                               alt="Icon 4 hover"
                               className="w-full h-full object-contain absolute top-0 left-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                             />
@@ -920,7 +920,7 @@ export const Navigation: React.FC = () => {
       >
         {/* Backdrop */}
         <div
-          className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${isMobileMenuOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+          className={`absolute inset-0 bg-black/50 transition-opacity duration-200 bg-white ${isMobileMenuOpen ? "opacity-100" : "opacity-0 pointer-events-none"
             }`}
           onClick={() => setIsMobileMenuOpen(false)}
         />
@@ -1090,13 +1090,17 @@ export const Navigation: React.FC = () => {
                         </Link>
                       </li>
                       <li>
-                        <Link
-                          to="/glasses"
-                          className="flex items-center gap-2 text-base font-medium text-black hover:bg-gray-100 p-2 rounded transition-all duration-200"
-                          onClick={() => setIsMobileMenuOpen(false)}
+                        {/* UPDATED: Changed Link to button to trigger MFit Popup */}
+                        <button
+                          type="button"
+                          className="flex items-center gap-2 text-base font-medium text-black hover:bg-gray-100 p-2 rounded transition-all duration-200 w-full text-left"
+                          onClick={() => {
+                            setIsGetMyFitPopupOpen(true);
+                            setIsMobileMenuOpen(false);
+                          }}
                         >
                           <span>1000+ Ways To Style Yourself</span>
-                        </Link>
+                        </button>
                       </li>
                     </ul>
                   )}
@@ -1272,7 +1276,7 @@ export const Navigation: React.FC = () => {
         </div>
       </div>
 
-      {/* Floating MFit Button for Mobile */}
+      {/* Floating MFit Button for Mobile
       {!isGetMyFitPopupOpen && (
         <button
           onClick={() => setIsGetMyFitPopupOpen(true)}
@@ -1301,7 +1305,7 @@ export const Navigation: React.FC = () => {
             MFit
           </span>
         </button>
-      )}
+      )} */}
 
       {/* Cart Drawer */}
       <CustomerCartView

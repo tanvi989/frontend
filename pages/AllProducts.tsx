@@ -543,7 +543,7 @@ const AllProducts: React.FC<AllProductsProps> = ({ mobileLayout = false }) => {
         if (max !== -Infinity) params.max_price = max;
       }
 
-      // Arrays - Join with | for regex OR logic (Backend now supports regex or split, stick to pipe for now as backend splits it)
+      // Arrays - Join with | for regex OR logic (Backend now supports regex or split, stick to Pipe for now as backend splits it)
       if (selectedFilters.Shape.length > 0) params.shape = selectedFilters.Shape.join("|");
       if (selectedFilters.FrameColors.length > 0) params.colors = selectedFilters.FrameColors.join("|");
       if (selectedFilters.Material.length > 0) params.material = selectedFilters.Material.join("|");
@@ -922,7 +922,8 @@ return withWidth.slice(0, 200).map(({ product }) => product);
       </div> */}
 
       {/* --- Main Content --- */}
-      <div className="max-w-[1600px] mx-auto px-0 md:px-8 py-8 flex flex-col lg:flex-row gap-10">
+      {/* UPDATED: Changed py-8 to py-2 md:py-8 to reduce top gap on mobile */}
+      <div className="max-w-[1600px] mx-auto px-0 md:px-8 py-2 md:py-8 flex flex-col lg:flex-row gap-10">
         {/* Left Sidebar Filters - Sticky */}
         <aside className="w-full lg:w-[240px] shrink-0 pr-2 hidden lg:block sticky top-20 self-start z-10" style={{ maxHeight: 'calc(100vh - 6rem)', overflowY: 'auto' }}>
           <div className="flex items-center justify-between mb-4">
@@ -1037,7 +1038,8 @@ return withWidth.slice(0, 200).map(({ product }) => product);
         {/* Right Grid */}
         <div className="flex-1 relative">
           {/* Mobile: Top matches MFit Toggle + MFit Toggle (face/frame width hidden after VTO) */}
-          <div className="lg:hidden flex items-center justify-end sm:mb-4 mb-0 px-2 flex-wrap gap-2">
+          {/* UPDATED: Changed sm:mb-4 to sm:mb-2 to reduce gap */}
+          <div className="lg:hidden flex items-center justify-end sm:mb-2 mb-0 px-2 flex-wrap gap-2">
             <div className="flex items-center gap-3">
               {fitEnabled && (
                 <>
@@ -1238,7 +1240,8 @@ return withWidth.slice(0, 200).map(({ product }) => product);
           })()}
 
           {/* Product Grid - Multifolks Style - Fixed Spacing. When mobileLayout + VTO, use 1 col so 280x231 VTO container fits (matches Get My Fit popup). */}
-          <div className={`grid pt-4 sm:pt-4 ${fitEnabled && captureSession && mobileLayout ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-3'}`}>
+          {/* UPDATED: Changed pt-4 to pt-2 md:pt-4 to reduce gap */}
+          <div className={`grid pt-2 md:pt-4 sm:pt-4 ${fitEnabled && captureSession && mobileLayout ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-3'}`}>
             {paginatedProducts
               .map((product: any, index: number) => (
                 <div

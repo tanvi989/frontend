@@ -77,54 +77,54 @@ const AboutUs: React.FC = () => {
             <h3 className="text-lg sm:text-xl md:text-xl font-mono uppercase mb-1  text-[#1F1F1F] tracking-wide">
               The World's Only 100% Multifocal Specialists
             </h3>
+              <br />
             <div className="text-sm sm:text-base  text-gray-600 space-y-4 sm:space-y-4 text-sm font-mono text-justify">
               <p>
-                Ask anyone who wears multifocals and they'll tell you how great
-                an addition they are to day-to-day life. School runs, work
-                emails, sports, bedtime stories, you can focus at every distance
-                with no need for different glasses and no tired eyes.
+               Ask anyone who wears multifocals and they’ll tell you — they change daily life. School runs, work emails, sport, bedtime stories. Clear vision at every distance, all in one pair.
               </p>
               <p>
-                In fact, we're such believers in the life-enhancing power of
-                multifocals we made it our mission to encourage more people to
-                experience them! Creating the world's first and only multifocal
-                specialist service providing high-quality, feature-rich
-                multifocal lenses and glasses within budget and with zero fuss.
+            
+We believe so strongly in the life-enhancing power of multifocals that we built a service entirely around them. High-quality, feature-rich lenses. Honest pricing. Zero fuss.
+
               </p>
-              <p>The rest, as they say, is Multifolks...</p>
+              <p>That’s Multifolks.</p>
             </div>
           </section>
 
           <section>
+              <br />
             <h3 className="text-sm sm:text-xl md:text-xl font-bold uppercase   text-[#1F1F1F] tracking-wide">
               The Folk Behind Multifolks
             </h3>
+            
+  <br />
             <div className="text-md  text-gray-600 leading-relaxed  font-display text-justify">
               <p>
-                We're a deliberately online service, but one totally powered by
-                people. Our team are passionate about what we're doing, and
-                bring huge experience of the eyewear industry. Our team has
-                helped thousands of people find glasses that work for real life.
-                That expertise is what drives every frame, every lens, and every
-                customer interaction here at Multifolks.
+              We’re proudly online — and powered by real expertise.
+              </p>
+              <br />
+          
+               <p>
+             Our team brings years of eyewear experience and has helped thousands find glasses that work for real life. That knowledge shapes every lens, every frame, and every interaction.
               </p>
             </div>
           </section>
 
           <section>
+              <br />
             <h3 className="text-lg sm:text-xl md:text-xl font-bold uppercase  text-[#1F1F1F] tracking-wide">
               Making Multifocals Surprisingly Affordable
             </h3>
+              <br />
             <div className="text-md   text-gray-600 font-sans-serif  leading-relaxed sm:leading-[1.7] font-medium text-justify">
               <p>
-                Phone, wallet, keys, we've all got enough expensive things to
-                worry about losing already. From day one, a key priority of ours
-                was to make multifocals less of a big-ticket purchase. This we
-                can do thanks to the fact they're the one thing we focus on and
-                our process is super streamlined. Our economies of scale
-                translate into genuine savings for our customers, of up to 50%
-                against high-street prices. We're not saying lose your glasses!
-                But if you do, it's not a $400 disaster any more.
+             Multifocals shouldn’t feel like a luxury purchase.
+              </p>  <br />
+               <p>
+           Because they’re our sole focus, we’ve streamlined everything — passing savings of up to 50% compared to the high street directly to you.
+              </p>  <br />
+               <p>
+           Clear vision. Sensible pricing. No drama.
               </p>
             </div>
           </section>

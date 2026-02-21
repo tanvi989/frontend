@@ -65,8 +65,8 @@ const DesktopCart: React.FC = () => {
         firstName: localStorage.getItem("firstName") || "User",
     });
     const cartUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const hasAutoAppliedCouponRef = useRef(false);
-    const isAutoApplyingCouponRef = useRef(false);
+    // const hasAutoAppliedCouponRef = useRef(false);
+    // const isAutoApplyingCouponRef = useRef(false);
     const prevCartIdsRef = useRef<Map<string, number>>(new Map());
 
     // Handle initial mount - show loader immediately
@@ -130,7 +130,7 @@ const DesktopCart: React.FC = () => {
                 if (token && !authData.isAuthenticated) {
                     setShowLoginModal(false);
                     setShowSignUpModal(false);
-                    hasAutoAppliedCouponRef.current = false; // re-apply coupon after login
+                
                     
                     // Check for redirect destination
                     const returnTo = sessionStorage.getItem("returnTo");
@@ -405,21 +405,15 @@ useEffect(() => {
             if (res.data.success) {
                 refetch();
                 setCouponCode("");
-                if (!isAutoApplyingCouponRef.current) {
-                    alert("Coupon applied successfully!");
-                }
-                isAutoApplyingCouponRef.current = false;
+                alert("Coupon applied successfully!");
             } else {
-                isAutoApplyingCouponRef.current = false;
+           
                 alert(res.data.message || "Failed to apply coupon");
             }
         },
         onError: (err: any, _code, context: any) => {
-            const wasAutoApply = isAutoApplyingCouponRef.current;
-            hasAutoAppliedCouponRef.current = false;
-            isAutoApplyingCouponRef.current = false;
-            if (context?.previous) queryClient.setQueryData(["cart"], context.previous);
-            if (!wasAutoApply) alert(err.response?.data?.detail || "Failed to apply coupon");
+          if (context?.previous) queryClient.setQueryData(["cart"], context.previous);
+alert(err.response?.data?.detail || "Failed to apply coupon");
         },
     });
 
@@ -486,17 +480,17 @@ useEffect(() => {
     };
 
     // Auto-apply default coupon LAUNCH50 when cart has items, no coupon, and user is logged in (coupon API requires auth)
-    useEffect(() => {
-        if (hasAutoAppliedCouponRef.current) return;
-        if (!authData.isAuthenticated) return;
-        const hasItems = Array.isArray(cartItems) && cartItems.length > 0;
-        const noCoupon = !cartData?.coupon;
-        if (hasItems && noCoupon) {
-            hasAutoAppliedCouponRef.current = true;
-            isAutoApplyingCouponRef.current = true;
-            applyCouponMutation("LAUNCH50");
-        }
-    }, [authData.isAuthenticated, cartItems?.length, cartData?.coupon]);
+    // useEffect(() => {
+    //     if (hasAutoAppliedCouponRef.current) return;
+    //     if (!authData.isAuthenticated) return;
+    //     const hasItems = Array.isArray(cartItems) && cartItems.length > 0;
+    //     const noCoupon = !cartData?.coupon;
+    //     if (hasItems && noCoupon) {
+    //         hasAutoAppliedCouponRef.current = true;
+    //         isAutoApplyingCouponRef.current = true;
+    //         applyCouponMutation("LAUNCH50");
+    //     }
+    // }, [authData.isAuthenticated, cartItems?.length, cartData?.coupon]);
 
     const handleRemoveCoupon = () => {
         removeCouponMutation();

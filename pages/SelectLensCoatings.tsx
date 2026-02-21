@@ -1,4 +1,3 @@
-// export default SelectLensCoatings;
 import React, { useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,12 +9,11 @@ import { setCartLensOverride } from "../utils/priceUtils";
 import ProductDetailsFooter from "@/components/ProductDetailsFooter";
 import { getProductFlow, setProductFlow, saveCartId } from "../utils/productFlowStorage";
 
-
-
 const SelectLensCoatings: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { state: locationState } = useLocation();
   const flow = id ? getProductFlow(id) : null;
+  // Merge storage with navigation state
   const state = { ...flow, product: locationState?.product ?? flow?.product, ...locationState };
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -60,7 +58,6 @@ const SelectLensCoatings: React.FC = () => {
     const tier = state?.prescriptionTier;
     
     if (lensType === "progressive" && tier) {
-      // Map tier to display name
       const tierMap: { [key: string]: string } = {
         precision: "Precision+ Options",
         advanced: "Advanced Options",
@@ -79,6 +76,18 @@ const SelectLensCoatings: React.FC = () => {
       default:
         return "Multifocal";
     }
+  };
+
+  // Helper to get Lens Category display name
+  const getLensCategoryDisplay = (cat?: string) => {
+    if (!cat) return undefined;
+    const map: Record<string, string> = {
+      blue: "Blue Protect",
+      clear: "Clear",
+      photo: "Photochromic",
+      sun: "Sunglasses"
+    };
+    return map[cat] || cat;
   };
 
   const product = state?.product || (apiProduct ? {
@@ -103,13 +112,8 @@ const SelectLensCoatings: React.FC = () => {
   // Debug logging
   React.useEffect(() => {
     console.log("=== SelectLensCoatings Debug ===");
-    console.log("URL ID:", id);
-    console.log("State:", state);
-    console.log("State Product:", state?.product);
-    console.log("API Product:", apiProduct);
-    console.log("Final Product:", product);
-    console.log("================================");
-  }, [id, state, apiProduct, product]);
+    console.log("Merged State for Footer:", state);
+  }, [state]);
 
   const COATING_OPTIONS = [
     {
@@ -164,15 +168,13 @@ const SelectLensCoatings: React.FC = () => {
     }
 
     try {
-      // If we have a pending selection from the packages page, merge it into state-driven values.
-      // This avoids losing the lens package price if react-router state is missing after refresh/navigation.
+      // ... (Existing logic for add to cart, select lens, etc remains unchanged)
       let pendingSelection: any = null;
       try {
         const raw = sessionStorage.getItem("pending_lens_selection_v1");
         pendingSelection = raw ? JSON.parse(raw) : null;
       } catch { }
 
-      // Persist flow to session so we can restore after refresh
       if (id && product) {
         setProductFlow(id, {
           product: product as any,
@@ -189,7 +191,6 @@ const SelectLensCoatings: React.FC = () => {
         });
       }
 
-      // Resolve product with price (fetch from API if flow product has no price)
       let productToAdd = product;
       const framePrice = Number(product?.price ?? product?.list_price ?? 0);
       if ((!framePrice || framePrice === 0) && id) {
@@ -201,7 +202,6 @@ const SelectLensCoatings: React.FC = () => {
         }
       }
 
-      // Get lens and coating prices before add
       const selectedCoatingOption = COATING_OPTIONS.find(c => c.id === coatingId);
       const lensPackage = state?.selectedLensPackage ?? pendingSelection?.lensPackage;
       let lensPackagePrice = 0;
@@ -217,7 +217,6 @@ const SelectLensCoatings: React.FC = () => {
       }
       const coatingPrice = selectedCoatingOption?.priceValue ?? 0;
 
-      // 1) Add product to cart with full pricing (frame + lens + coating) and PD details for final order
       const addToCartResponse: any = await addToCart(productToAdd, "instant", undefined, {
         lensPackagePrice,
         coatingPrice,
@@ -229,7 +228,7 @@ const SelectLensCoatings: React.FC = () => {
         pdRight: state?.pdRight ?? flow?.pdRight,
         pdLeft: state?.pdLeft ?? flow?.pdLeft,
       });
-      console.log("DEBUG: addToCart full response:", addToCartResponse);
+      
       trackAddToCart(productToAdd, 1);
 
       let cartId = addToCartResponse?.data?.cart_id ||
@@ -267,12 +266,11 @@ const SelectLensCoatings: React.FC = () => {
         return;
       }
 
-      // 2) select/update lens (already computed above)
       await selectLens(product.skuid, cartId, coatingId, {
         title: selectedCoatingOption?.title,
-        priceValue: selectedCoatingOption?.priceValue || 0, // Coating price
+        priceValue: selectedCoatingOption?.priceValue || 0,
         lensPackage: lensPackage,
-        lensPackagePrice: lensPackagePrice, // Lens index price
+        lensPackagePrice: lensPackagePrice,
         lensCategory: state?.lensCategory,
         prescriptionTier: state?.prescriptionTier,
         main_category: state?.lensType === "single" ? "Single Vision" :
@@ -282,8 +280,6 @@ const SelectLensCoatings: React.FC = () => {
           state?.prescriptionTier === "standard" ? "Standard Progressive" : "Progressive",
       });
 
-
-      // Persist the user's chosen prices locally (backend may not echo them back reliably). Pass id (SKU) so override survives cart_id change after login.
       setCartLensOverride(cartId, {
         lensPackage: lensPackage,
         lensPackagePrice: Number(lensPackagePrice || 0),
@@ -299,13 +295,8 @@ const SelectLensCoatings: React.FC = () => {
         coatingPrice: Number(selectedCoatingOption?.priceValue || 0),
       }, id ?? undefined);
 
-
-      // Clear pending selection once we've persisted it against a real cart_id
       try { sessionStorage.removeItem("pending_lens_selection_v1"); } catch { }
 
-      console.log("DEBUG: cartId before prescription:", cartId, "Type:", typeof cartId);
-
-      // 3) add prescription if available
       try {
         if (state?.prescriptionMethod === "manual" && state?.prescriptionData) {
           const customerID = localStorage.getItem("customerID") || "guest";
@@ -315,20 +306,15 @@ const SelectLensCoatings: React.FC = () => {
         }
       } catch (prescErr) {
         console.error("Failed to save prescription, but proceeding to cart:", prescErr);
-        // We do NOT block navigation if prescription saves fail, as per user requirement to "go to cart anyhow"
       }
 
-      // 5) refresh cart queries and navigate based on screen size
       await queryClient.invalidateQueries({ queryKey: ["cart"] });
 
-      // Check if mobile (screen width < 768px)
       const isMobile = window.innerWidth < 768;
 
       if (isMobile) {
-        // Mobile: navigate to checkout preview
         navigate("/checkout-preview");
       } else {
-        // Desktop: navigate directly to cart
         navigate("/cart");
       }
     } catch (err: any) {
@@ -338,7 +324,6 @@ const SelectLensCoatings: React.FC = () => {
       }
 
       let msg = err?.message ?? "An error occurred while processing your selection";
-      // Prefer backend detail/message when present (addToCart attaches err.response)
       if (err?.response?.data) {
         const d = err.response.data;
         const detail = d.detail ?? d.message ?? d.error;
@@ -355,7 +340,6 @@ const SelectLensCoatings: React.FC = () => {
     }
   };
 
-  // Early return if no product data available
   if (!product) {
     return (
       <div className="min-h-screen bg-[#F3F0E7] font-sans py-2 md:py-8 px-4 md:px-8 flex items-center justify-center">
@@ -474,30 +458,25 @@ const SelectLensCoatings: React.FC = () => {
         )}
 
         {/* Product Details Footer - Mobile Only */}
+        {/* UPDATED: Props now pull dynamically from the merged state */}
         <div className="mx-auto mt-12 block md:hidden">
           <ProductDetailsFooter
             product={product}
             selectedColor={product.colors ? product.colors[0] : undefined}
             prescriptionData={{
               prescriptionType: getPrescriptionTypeLabel(),
-              pd: state?.prescriptionData?.pdOD
-                ? `${state.prescriptionData.pdOD}/${state.prescriptionData.pdOS}`
-                : state?.prescriptionData?.totalPD,
-              birthYear: state?.prescriptionData?.birthYear,
-              od: {
-                sph: state?.prescriptionData?.sphOD,
-                cyl: state?.prescriptionData?.cylOD,
-                axis: state?.prescriptionData?.axisOD,
-              },
-              os: {
-                sph: state?.prescriptionData?.sphOS,
-                cyl: state?.prescriptionData?.cylOS,
-                axis: state?.prescriptionData?.axisOS,
-              },
-              addPower: state?.prescriptionData?.addOD,
+              prescriptionMethod: state?.prescriptionMethod,
+              // Reconstruct PD string from flow/state
+              pd: state?.pdSingle ? state.pdSingle : (state?.pdRight && state?.pdLeft ? `${state.pdRight}/${state.pdLeft}` : undefined),
+              // Map OD/OS if available
+              od: state?.prescriptionData?.od,
+              os: state?.prescriptionData?.os,
             }}
             lensDetails={{
-              lensType: "Photochromic",
+              lensType: getLensCategoryDisplay(state?.lensCategory),
+              // Use the selected package index
+              lensIndex: state?.selectedLensPackage ? `Index: ${state.selectedLensPackage}` : undefined,
+              lensIndexPrice: state?.selectedLensPrice ? `+£${state.selectedLensPrice}` : undefined,
               addOns: [{ name: "Case & Cleaning cloth included", price: "Free" }],
             }}
           />

@@ -13,8 +13,8 @@ export default function ChooseRightLens() {
       image: "./drive.png",
       title: "CHOOSING THE RIGHT LENS",
       description: [
-        "One of the brilliant things about multifocals is the different lens types you have to choose from to suit exactly what you want them for, whether that's reading, working, driving or everything.",
-        "Here's an explanation of the three types of multifocal lens. And click on our sitting tool to choose the right one for you.",
+        "One of the brilliant things about multifocals is the differe",
+        "See the three options below, then let our fitting tool guide you to the right one.",
       ],
       middleImage: "./Specs 3.png",
       middleContent: null,

@@ -22,7 +22,18 @@ export const Home: React.FC = () => {
   return (
     <>
       <HeroSection />
-
+ {/* Image block with mobile-safe containment */}
+      <div className="w-full flex justify-center hidden lg:block">
+        <img
+          src="four2.png"
+          alt="Product Showcase"
+          width="1920"
+          height="600"
+          loading="lazy"
+          className="w-full max-w-full object-contain"
+          style={{ objectFit: "contain" }}
+        />
+      </div>
 {/* MFit Banner */}
 <div
   className="w-full cursor-pointer"
@@ -45,7 +56,7 @@ export const Home: React.FC = () => {
   />
 </div>
 
-      <MultifocalHero />
+
       <FeaturesSectionSecond />
       {/* <FeaturesSection /> */}
       <ProductSection />
@@ -54,18 +65,7 @@ export const Home: React.FC = () => {
       <div className="block lg:hidden">
         <PersonalLens />
       </div>
-      {/* Image block with mobile-safe containment */}
-      <div className="w-full flex justify-center hidden lg:block">
-        <img
-          src="four2.png"
-          alt="Product Showcase"
-          width="1920"
-          height="600"
-          loading="lazy"
-          className="w-full max-w-full object-contain"
-          style={{ objectFit: "contain" }}
-        />
-      </div>
+     
       <ChooseRightLens />
       {/* <MultiFrames /> */}
 
@@ -173,10 +173,11 @@ export const Home: React.FC = () => {
         </div>
       </div>
 
-      <Multifocus />
+
       {/* <div className="block lg:hidden">
         <GoodLiving />
       </div> */}
+            <MultifocalHero />
       <NamingSystemSection />
 
       {/* MFit Popup */}

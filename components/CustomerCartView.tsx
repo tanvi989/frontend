@@ -290,14 +290,14 @@ const CustomerCartView: React.FC<CustomerCartViewProps> = ({
           {carts && carts.length > 0 && (
             <div className="p-6 border-t border-gray-100 bg-gray-50">
               {/* Offers Section */}
-              <Offers
+               <Offers
                 refetch={refetch}
                 listPrice={subtotal}
                 offer={appliedOffer}
                 offerAmount={offerAmount}
-              />
+              /> 
 
-              <div className="space-y-2 mb-4 pt-2">
+               <div className="space-y-2 mb-4 pt-2">
                 <div className="flex justify-between text-sm font-medium text-[#1F1F1F]">
                   <span>Subtotal</span>
                   <span>£{subtotal.toFixed(2)}</span>
@@ -320,7 +320,7 @@ const CustomerCartView: React.FC<CustomerCartViewProps> = ({
                     <span>£{(subtotal - (discountAmount ?? 0) + (shippingCost ?? 0)).toFixed(2)}</span>
                   </div>
                 )}
-              </div>
+              </div> 
               <button
                 onClick={handleCheckout}
                 className={`w-full py-3 font-bold rounded-full transition-colors shadow-lg uppercase tracking-wider text-sm ${onCheckout
@@ -329,7 +329,7 @@ const CustomerCartView: React.FC<CustomerCartViewProps> = ({
                   }`}
               >
                 {onCheckout ? (buttonText || "Checkout") : "Checkout"}
-              </button>
+              </button> 
             </div>
           )}
         </div>

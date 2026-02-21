@@ -41,8 +41,7 @@ const Cart: React.FC = () => {
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [selectedCartId, setSelectedCartId] = useState<number | null>(null);
   const pendingDeleteCartIdRef = useRef<number | null>(null);
-  const hasAutoAppliedCouponRef = useRef(false);
-  const isAutoApplyingCouponRef = useRef(false);
+
   const [viewPrescription, setViewPrescription] = useState<any>(null);
   const [couponCode, setCouponCode] = useState("");
   const [shippingMethod, setShippingMethod] = useState<string>("standard");
@@ -329,22 +328,16 @@ const Cart: React.FC = () => {
         refetch();
         setCouponCode("");
         setIsCoupoenApplied(true);
-        if (!isAutoApplyingCouponRef.current) {
-          alert("Coupon applied successfully!");
-        }
-        isAutoApplyingCouponRef.current = false;
+        alert("Coupon applied successfully!");
       } else {
-        isAutoApplyingCouponRef.current = false;
+  
         alert(res.data.message || "Failed to apply coupon");
         setIsCoupoenApplied(false);
       }
     },
     onError: (err: any, _code, context: any) => {
-      const wasAutoApply = isAutoApplyingCouponRef.current;
-      hasAutoAppliedCouponRef.current = false;
-      isAutoApplyingCouponRef.current = false;
-      if (context?.previous) queryClient.setQueryData(["cart"], context.previous);
-      if (!wasAutoApply) alert(err.response?.data?.detail || "Failed to apply coupon");
+    if (context?.previous) queryClient.setQueryData(["cart"], context.previous);
+alert(err.response?.data?.detail || "Failed to apply coupon");
     },
   });
 
@@ -427,18 +420,7 @@ const Cart: React.FC = () => {
   };
 
   // Auto-apply default coupon LAUNCH50 when cart has items, no coupon, and user is logged in (coupon API requires auth)
-  useEffect(() => {
-    if (hasAutoAppliedCouponRef.current) return;
-    if (!authData.isAuthenticated) return;
-    const cart = cartResponse?.cart;
-    const hasItems = Array.isArray(cart) && cart.length > 0;
-    const noCoupon = !cartResponse?.coupon;
-    if (hasItems && noCoupon) {
-      hasAutoAppliedCouponRef.current = true;
-      isAutoApplyingCouponRef.current = true;
-      applyCouponMutation("LAUNCH50");
-    }
-  }, [authData.isAuthenticated, cartResponse?.cart, cartResponse?.coupon]);
+ 
 
   const handleRemoveCoupon = () => {
     removeCouponMutation();

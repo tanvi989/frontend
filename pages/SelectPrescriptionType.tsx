@@ -150,14 +150,14 @@ const SelectPrescriptionType: React.FC = () => {
                         Progressive / Varifocal Lenses
                       </h3>
                      
-                      {/* Description bullet points — small font */}
-                      <ul className="space-y-0.5 mt-1">
-                        <li className="text-[11px] text-gray-600 leading-snug flex items-start gap-1">
-                          <span className="mt-0.5 shrink-0">•</span>
+                      {/* Description bullet points — increased font size */}
+                      <ul className="space-y-1 mt-1">
+                        <li className="text-sm text-gray-600 leading-snug flex items-start gap-1.5">
+                          <span className="mt-1 shrink-0">•</span>
                           <span>One pair for reading, screen, and distance effortless.</span>
                         </li>
-                        <li className="text-[11px] text-gray-600 leading-snug flex items-start gap-1">
-                          <span className="mt-0.5 shrink-0">•</span>
+                        <li className="text-sm text-gray-600 leading-snug flex items-start gap-1.5">
+                          <span className="mt-1 shrink-0">•</span>
                           <span>Smooth transition between zones, built for real life.</span>
                         </li>
                       </ul>
@@ -207,14 +207,14 @@ const SelectPrescriptionType: React.FC = () => {
                       <h3 className="text-base md:text-lg font-bold text-[#1F1F1F] mb-1">
                         Bifocal Lenses
                       </h3>
-                      {/* Description bullet points — small font */}
-                      <ul className="space-y-0.5 mt-1">
-                        <li className="text-[11px] text-gray-600 leading-snug flex items-start gap-1">
-                          <span className="mt-0.5 shrink-0">•</span>
+                      {/* Description bullet points — increased font size */}
+                      <ul className="space-y-1 mt-1">
+                        <li className="text-sm text-gray-600 leading-snug flex items-start gap-1.5">
+                          <span className="mt-1 shrink-0">•</span>
                           <span>Visible line separating distance and reading zones.</span>
                         </li>
-                        <li className="text-[11px] text-gray-600 leading-snug flex items-start gap-1">
-                          <span className="mt-0.5 shrink-0">•</span>
+                        <li className="text-sm text-gray-600 leading-snug flex items-start gap-1.5">
+                          <span className="mt-1 shrink-0">•</span>
                           <span>Noticeable image jump when switching focus.</span>
                         </li>
                       </ul>
@@ -263,7 +263,8 @@ const SelectPrescriptionType: React.FC = () => {
                       <h3 className="text-base md:text-lg font-bold text-[#1F1F1F] mb-1">
                         Single Vision Lenses
                       </h3>
-                      <p className="text-[11px] text-gray-600 leading-snug">
+                      {/* Description text — increased font size */}
+                      <p className="text-sm text-gray-600 leading-snug">
                         <span className="md:hidden">Corrects for one field of vision: near, intermediate or distance.</span>
                         <span className="hidden md:inline">Corrects for one field of vision.</span>
                       </p>
