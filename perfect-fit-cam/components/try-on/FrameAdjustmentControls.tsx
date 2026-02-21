@@ -27,7 +27,7 @@ export function FrameAdjustmentControls({
   return (
     <div className="bg-muted/30 rounded-lg p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-medium text-foreground">Fine-tune Adjustment</h4>
+        <h4 className="text-sm font-medium text-foreground">sFine-tune Adjustment</h4>
         <Button
           variant="ghost"
           size="sm"
@@ -42,7 +42,7 @@ export function FrameAdjustmentControls({
       {/* Horizontal Position – allow full left/right alignment (negative = left) */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="text-xs text-muted-foreground flex items-center gap-1">
+          <label className="text-xs text-muted-foreground flex items-center gap-1 text-center">
             <Move className="h-3 w-3" />
             Horizontal
           </label>

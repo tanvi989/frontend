@@ -79,7 +79,7 @@ const FIXED_100_ADJUSTMENTS: AdjustmentValues = { offsetX: 0, offsetY: 0, scaleA
 const AI_ALIGN_ADJUSTMENTS: AdjustmentValues = { offsetX: 0, offsetY: 0, scaleAdjust: 1, rotationAdjust: 0 };
 
 /** Mobile: fixed frame scale after align (133%) – matches Get My Fit popup & /glasses-m */
-const MOBILE_ALIGN_SCALE = 1.33;
+const MOBILE_ALIGN_SCALE = 1.2;
 
 export function MeasurementsTab({ onViewMeasurements, previewWidth = 384, previewHeight = 332, compactLayout = false, hideFrameAlignment = false, hideSizeControl = false }: MeasurementsTabProps = {}) {
   const { capturedData, setCapturedData } = useCaptureData();
@@ -107,7 +107,7 @@ export function MeasurementsTab({ onViewMeasurements, previewWidth = 384, previe
         toast.error('Could not detect eyes. Try a clearer photo or click Align again.');
         return;
       }
-      const scaleForAlign = hideSizeControl ? 1 : (compactLayout ? MOBILE_ALIGN_SCALE : 0.85); // Desktop: 85% after align
+      const scaleForAlign = hideSizeControl ? 1 : (compactLayout ? MOBILE_ALIGN_SCALE : 0.9); // Desktop: 85% after align
       const alignValues: AdjustmentValues = {
         ...AI_ALIGN_ADJUSTMENTS,
         scaleAdjust: scaleForAlign,
@@ -220,20 +220,21 @@ export function MeasurementsTab({ onViewMeasurements, previewWidth = 384, previe
       {/* Instruction + Face with test frame */}
       <div className={isCompact ? 'space-y-3 flex flex-col items-center' : 'space-y-3 text-left'}>
         <div className="flex flex-wrap items-center justify-center gap-2 w-full">
-          <p className="text-xs font-bold text-gray-700 uppercase tracking-wide text-center">
-            Please align how you like to wear glasses
+          <p className="text-xs font-bold text-gray-700 uppercase tracking-wide ">
+            Your fit is personal. <br />
+Position the frame as you would wear it daily. Accurate alignment ensures perfectly tailored multifocals.
           </p>
           {!hideFrameAlignment && capturedData?.processedImageDataUrl && (
-            <button
-              type="button"
-              onClick={handleAlignToEyes}
-              disabled={isAligning}
-              className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-md bg-[#232320] text-white hover:bg-black transition-colors disabled:opacity-70 disabled:cursor-wait flex items-center gap-1.5"
-              title="Detect eyes and align frame (MediaPipe)"
-            >
-              {isAligning ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-              Align
-            </button>
+         <button
+  type="button"
+  onClick={handleAlignToEyes}
+  disabled={isAligning}
+  className="hidden shrink-0 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-md bg-[#232320] text-white hover:bg-black transition-colors disabled:opacity-70 disabled:cursor-wait flex items-center gap-1.5"
+  title="Detect eyes and align frame (MediaPipe)"
+>
+  {isAligning ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+  Align
+</button>
           )}
         </div>
         {/* Desktop: grid image left, controls right. Mobile (compactLayout): VTO centered, then measurement + controls below. */}

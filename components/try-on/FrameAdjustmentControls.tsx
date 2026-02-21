@@ -32,7 +32,7 @@ export function FrameAdjustmentControls({
   return (
     <div className="bg-muted/30 rounded-lg p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-medium text-foreground">Fine-tune Adjustment</h4>
+        <h4 className="text-sm font-medium text-foreground">Personalize</h4>
         <Button
           variant="ghost"
           size="sm"

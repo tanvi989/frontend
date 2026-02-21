@@ -542,7 +542,7 @@ const GetMyFitPopupMobile: React.FC<GetMyFitPopupMobileProps> = ({ open, onClose
             
             <Tabs value={step4Tab} onValueChange={(v) => setStep4Tab(v as 'measurements' | 'frames')} className="w-full flex-1 flex flex-col overflow-hidden">
               <TabsList className="grid grid-cols-2 h-10 bg-gray-200/50 p-1 rounded-xl mb-4">
-                <TabsTrigger value="measurements" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold text-[9px] uppercase tracking-widest">Perfect MFit</TabsTrigger>
+                <TabsTrigger value="measurements" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold text-[9px] uppercase tracking-widest">FRAME TRY-ON</TabsTrigger>
                 <TabsTrigger value="frames" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold text-[9px] uppercase tracking-widest">Try-On</TabsTrigger>
               </TabsList>
 

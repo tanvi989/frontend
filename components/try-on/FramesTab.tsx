@@ -693,7 +693,7 @@ export function FramesTab({ measurementsOnly = false, onBackToMeasurements, useD
           onClick={onBackToMeasurements}
           className="w-full flex items-center justify-center gap-2 bg-[#F3F4F6] text-black py-3 px-4 rounded-xl text-sm font-bold uppercase tracking-widest border-2 border-gray-300 hover:bg-gray-200 transition-colors"
         >
-          ← Back to Perfect MFit
+          ← Back to FRAME TRY-ON
         </button>
       )}
 

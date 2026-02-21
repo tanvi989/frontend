@@ -17,15 +17,15 @@ export interface AdjustmentValues {
 export const DEFAULT_ADJUSTMENTS: AdjustmentValues = {
   offsetX: -16,
   offsetY: 2,
-  scaleAdjust: 1.21,
+  scaleAdjust: 1.2,
   rotationAdjust: 0,
 };
 
 /** Desktop-only default: Size 85% – used for GetMyFit popup, /glasses, product page, share */
 export const DEFAULT_ADJUSTMENTS_DESKTOP: AdjustmentValues = {
-  offsetX: -16,
-  offsetY: 2,
-  scaleAdjust: 0.85,
+  offsetX: 0,
+  offsetY: 0,
+  scaleAdjust: 0.9,
   rotationAdjust: 0,
 };
 

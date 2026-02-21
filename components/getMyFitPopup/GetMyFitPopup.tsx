@@ -777,7 +777,7 @@ const GetMyFitPopup: React.FC<GetMyFitPopupProps> = ({ open, onClose, initialSte
                     <Tabs value={step4Tab} onValueChange={(v) => setStep4Tab(v as 'measurements' | 'frames')} className="w-full">
                       <TabsList className="grid grid-cols-2 h-12 bg-gray-100 p-1 rounded-xl mb-6">
                         <TabsTrigger value="measurements" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold uppercase text-[10px] tracking-widest">
-                          Perfect MFit
+                          FRAME TRY-ON
                         </TabsTrigger>
                         <TabsTrigger value="frames" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold uppercase text-[10px] tracking-widest">
                           Measurement
