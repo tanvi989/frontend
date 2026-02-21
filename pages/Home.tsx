@@ -34,6 +34,9 @@ export const Home: React.FC = () => {
           style={{ objectFit: "contain" }}
         />
       </div>
+        <div className="block lg:hidden">
+        <PersonalLens />
+      </div>
 {/* MFit Banner */}
 <div
   className="w-full cursor-pointer"
@@ -62,9 +65,7 @@ export const Home: React.FC = () => {
       <ProductSection />
       {/* <LensSection /> */}
       {/* <VisionSection /> */}
-      <div className="block lg:hidden">
-        <PersonalLens />
-      </div>
+    
      
       <ChooseRightLens />
       {/* <MultiFrames /> */}
