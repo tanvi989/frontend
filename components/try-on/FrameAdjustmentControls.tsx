@@ -87,7 +87,7 @@ export function FrameAdjustmentControls({
       </div>
 
       {/* Scale – hidden on desktop MFit, always 100% when hidden */}
-      {!hideSizeControl && (
+      {hideSizeControl && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-xs text-muted-foreground flex items-center gap-1">
